@@ -56,7 +56,7 @@ None. `openspec/specs/` is empty.
 
 ## Assumptions
 
-- Node 20, ESM (`"type": "module"`), consistent with the root `package.json` and `.nvmrc`.
+- Node 22 LTS (Node 20 is end of life and current Fastify and Vitest releases need 22), ESM (`"type": "module"`), consistent with the root `package.json` and `.nvmrc`.
 - `/healthz` is liveness only: it reports that the process is up and does not check the upstream,
   cache or SMTP. A dependency-aware readiness probe is not needed until there is a dependency worth
   gating traffic on.

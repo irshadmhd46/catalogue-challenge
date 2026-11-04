@@ -40,7 +40,7 @@ singletons.
 
 ### 2. Fastify's own logger is off; we log through the `Logger` port
 
-`Fastify({ logger: false, disableRequestLogging: true })`. Hooks in `http/` write the access line
+`Fastify({ logger: false })`. Hooks in `http/` write the access line
 (`request completed`: method, route, status, `durationMs`) through the injected `Logger`.
 
 - Alternative: pass pino as `loggerInstance` and use `request.log`. Rejected: it makes Fastify's
@@ -179,7 +179,7 @@ the test runner.
   stays module-agnostic so `apps/web` can use `Bundler`). Relative imports carry `.js` extensions.
 - `tsconfig.json` covers `src` and `test` for typecheck and for ESLint's `projectService`;
   `tsconfig.build.json` covers `src` only for `tsc` output to `dist/`.
-- `tsx` for local `dev`; production runs compiled `dist/main.js` on Node 20.
+- `tsx` for local `dev`; production runs compiled `dist/main.js` on Node 22.
 
 ### 12. Test support
 
