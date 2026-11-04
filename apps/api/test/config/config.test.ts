@@ -96,6 +96,15 @@ describe('loadConfig failures', () => {
     },
   );
 
+  it.each([
+    ['REQUEST_TIMEOUT_MS', '120000', '120001'],
+    ['BODY_LIMIT_BYTES', '1048576', '1048577'],
+    ['SHUTDOWN_TIMEOUT_MS', '120000', '120001'],
+  ])('%s accepts its maximum %s and rejects %s', (name, atMax, overMax) => {
+    expect(() => loadConfig({ [name]: atMax })).not.toThrow();
+    expect(configError({ [name]: overMax }).details?.map((issue) => issue.field)).toEqual([name]);
+  });
+
   it('reports several problems in one ConfigError', () => {
     const error = configError({ PORT: 'abc', LOG_LEVEL: 'verbose' });
 

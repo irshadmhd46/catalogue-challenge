@@ -2,16 +2,17 @@ import { z } from 'zod';
 import { ConfigError, type FieldIssue } from '../domain/errors.js';
 import { LOG_LEVELS, type LogLevelName } from '../domain/logger.js';
 
-const positiveInt = (defaultValue: number) => z.coerce.number().int().min(1).default(defaultValue);
+const positiveInt = (defaultValue: number, max: number) =>
+  z.coerce.number().int().min(1).max(max).default(defaultValue);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().min(1).default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1024).max(65_535).default(3000),
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
-  REQUEST_TIMEOUT_MS: positiveInt(10_000),
-  BODY_LIMIT_BYTES: positiveInt(10_240),
-  SHUTDOWN_TIMEOUT_MS: positiveInt(10_000),
+  REQUEST_TIMEOUT_MS: positiveInt(10_000, 120_000),
+  BODY_LIMIT_BYTES: positiveInt(10_240, 1_048_576),
+  SHUTDOWN_TIMEOUT_MS: positiveInt(10_000, 120_000),
 });
 
 export interface AppConfig {
