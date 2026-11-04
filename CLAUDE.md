@@ -9,7 +9,7 @@ behind clear boundaries.
 
 ## Stack
 
-- API: Node.js 20, TypeScript, Fastify, zod, pino, nodemailer, Vitest (`apps/api`)
+- API: Node.js 22, TypeScript, Fastify, zod, pino, nodemailer, Vitest (`apps/api`)
 - Web: React, TypeScript, Vite, TanStack Query, React Router, Vitest + Testing Library (`apps/web`)
 - Shared API contract: zod schemas and types (`packages/contracts`)
 - Runtime: Podman (or Docker) with `compose.yaml`; AWS-compatible images

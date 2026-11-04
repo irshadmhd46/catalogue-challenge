@@ -5,7 +5,7 @@
   "description": "Product catalogue proof of concept: Fastify API + React storefront",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "workspaces": [
     "apps/*",

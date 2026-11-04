@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  Product catalogue PoC: Node.js 20 + TypeScript Fastify API (apps/api), React + Vite web app
+  Product catalogue PoC: Node.js 22 + TypeScript Fastify API (apps/api), React + Vite web app
   (apps/web), shared zod contract (packages/contracts). Ports and adapters on the API side:
   ProductSource, EnquiryNotifier, Cache, Logger. Upstream product data comes from the Fake Store
   API, reached only through the API. Email goes to a sales inbox via SMTP (Mailpit locally).
