@@ -53,7 +53,7 @@
 
 - [x] 7.1 Add two throwaway files under `apps/api/src` (a floating promise and a `console.log`), confirm `npm run lint` fails on each, then delete them
 - [x] 7.2 Design principles check: SRP, DRY (codes, messages and redaction paths defined once), DIP (`new` of adapters only in `main.ts`), no presentation leak into domain
-- [ ] 7.3 Run `npm run typecheck && npm run lint && npm test` and `npm run test:coverage` (target 80%+ on `domain/`, `config/`, `http/`, `infrastructure/logging/`) and `npm audit --audit-level=high`
-- [ ] 7.4 Review gate: run the `code-reviewer` agent, then the `security-reviewer` agent; fix CRITICAL and HIGH findings, MEDIUM where cheap; save the report to `.claude/reviews/api-foundations.md`
-- [ ] 7.5 Add anything the reviews caught that the building pass got wrong to `AI_USAGE.md`
-- [ ] 7.6 Commit in logical units (workspace, errors, logging, config, http, lifecycle) using conventional commits; review `git status` and the diff before each; no remote, no push
+- [ ] 7.3 Run `npm run typecheck && npm run lint && npm test` and `npm run test:coverage` (target 80%+ on `domain/`, `config/`, `http/`, `infrastructure/logging/`) and `npm audit --audit-level=high` (typecheck, lint, tests and coverage green; the audit could not run from this machine, so the owner runs it before hand-off and records any exception in `DECISIONS.md`)
+- [x] 7.4 Review gate: run the `code-reviewer` agent, then the `security-reviewer` agent; fix CRITICAL and HIGH findings, MEDIUM where cheap; save the report to `.claude/reviews/api-foundations.md`
+- [x] 7.5 Add anything the reviews caught that the building pass got wrong to `AI_USAGE.md`
+- [x] 7.6 Commit in logical units (workspace, errors, logging, config, http, lifecycle) using conventional commits; review `git status` and the diff before each; no remote, no push
