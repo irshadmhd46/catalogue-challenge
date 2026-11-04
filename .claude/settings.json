@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat .claude/rules/development-workflow.md .claude/rules/git-workflow.md .claude/rules/design-principles.md .claude/rules/security.md .claude/rules/logging-and-errors.md .claude/rules/testing.md"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format.sh",
+            "statusMessage": "Formatting..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/review-reminder.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
