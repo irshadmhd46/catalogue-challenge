@@ -43,16 +43,16 @@
 
 ## 6. Lifecycle and composition root
 
-- [ ] 6.1 Write `test/lifecycle.test.ts` (RED) with fake logger, fake `exit`, fake timers and a fake process emitter: clean shutdown order, in-flight completion, second signal ignored with `warn`, failing closer continues and exits 1, stall exits 1 after `shutdownTimeoutMs`, `unhandledRejection` (Error and string) and `uncaughtException` log `fatal` and exit 1
-- [ ] 6.2 Implement `src/lifecycle.ts` (GREEN): `createShutdown({ app, closers, logger, exit, timeoutMs })` with `registerCloser`, idempotent run, unref'd hard timer; `installProcessHandlers({ proc, logger, shutdown, exit })`
-- [ ] 6.3 Implement `src/main.ts`: bootstrap logger, `loadConfig`, build logger with `getRequestContext`, `buildApp`, install handlers, `listen`, log `info` config summary; on `ConfigError` log `fatal` and exit 1; on `listen` failure log `fatal` and exit 1
-- [ ] 6.4 Test startup failure behaviour: extract `bootstrap(deps)` returning an exit code or throwing, so `ConfigError` (fatal line names variables, no value, exit 1, never listens) and `EADDRINUSE` (fatal, exit 1) are tested without starting a real process
-- [ ] 6.5 Run the built service locally (`npm run build -w @catalogue/api && node apps/api/dist/main.js`): `curl /healthz`, `curl /nope` (envelope + `x-request-id`), `kill -TERM` (graceful `info` lines, exit 0), `PORT=abc` (fatal line, non-zero exit)
+- [x] 6.1 Write `test/lifecycle.test.ts` (RED) with fake logger, fake `exit`, fake timers and a fake process emitter: clean shutdown order, in-flight completion, second signal ignored with `warn`, failing closer continues and exits 1, stall exits 1 after `shutdownTimeoutMs`, `unhandledRejection` (Error and string) and `uncaughtException` log `fatal` and exit 1
+- [x] 6.2 Implement `src/lifecycle.ts` (GREEN): `createShutdown({ app, closers, logger, exit, timeoutMs })` with `registerCloser`, idempotent run, unref'd hard timer; `installProcessHandlers({ proc, logger, shutdown, exit })`
+- [x] 6.3 Implement `src/main.ts`: bootstrap logger, `loadConfig`, build logger with `getRequestContext`, `buildApp`, install handlers, `listen`, log `info` config summary; on `ConfigError` log `fatal` and exit 1; on `listen` failure log `fatal` and exit 1
+- [x] 6.4 Test startup failure behaviour: extract `bootstrap(deps)` returning an exit code or throwing, so `ConfigError` (fatal line names variables, no value, exit 1, never listens) and `EADDRINUSE` (fatal, exit 1) are tested without starting a real process
+- [x] 6.5 Run the built service locally (`npm run build -w @catalogue/api && node apps/api/dist/main.js`): `curl /healthz`, `curl /nope` (envelope + `x-request-id`), `kill -TERM` (graceful `info` lines, exit 0), `PORT=abc` (fatal line, non-zero exit)
 
 ## 7. Quality gates
 
-- [ ] 7.1 Add two throwaway files under `apps/api/src` (a floating promise and a `console.log`), confirm `npm run lint` fails on each, then delete them
-- [ ] 7.2 Design principles check: SRP, DRY (codes, messages and redaction paths defined once), DIP (`new` of adapters only in `main.ts`), no presentation leak into domain
+- [x] 7.1 Add two throwaway files under `apps/api/src` (a floating promise and a `console.log`), confirm `npm run lint` fails on each, then delete them
+- [x] 7.2 Design principles check: SRP, DRY (codes, messages and redaction paths defined once), DIP (`new` of adapters only in `main.ts`), no presentation leak into domain
 - [ ] 7.3 Run `npm run typecheck && npm run lint && npm test` and `npm run test:coverage` (target 80%+ on `domain/`, `config/`, `http/`, `infrastructure/logging/`) and `npm audit --audit-level=high`
 - [ ] 7.4 Review gate: run the `code-reviewer` agent, then the `security-reviewer` agent; fix CRITICAL and HIGH findings, MEDIUM where cheap; save the report to `.claude/reviews/api-foundations.md`
 - [ ] 7.5 Add anything the reviews caught that the building pass got wrong to `AI_USAGE.md`
