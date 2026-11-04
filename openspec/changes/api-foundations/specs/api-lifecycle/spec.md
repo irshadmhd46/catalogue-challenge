@@ -55,6 +55,13 @@ exit `1` if shutdown does not finish within `shutdownTimeoutMs` or if any step f
 - **WHEN** `SIGTERM` is received while a request is being handled
 - **THEN** that request receives its response before exit is called
 
+#### Scenario: Idle keep-alive connection does not stall shutdown
+
+- **WHEN** a client holds an idle keep-alive connection and another request is in flight at
+  `SIGTERM`
+- **THEN** the in-flight request completes and shutdown finishes without waiting for the
+  keep-alive timeout
+
 #### Scenario: Second signal while shutting down
 
 - **WHEN** `SIGINT` arrives while shutdown is already running
@@ -71,7 +78,7 @@ exit `1` if shutdown does not finish within `shutdownTimeoutMs` or if any step f
 #### Scenario: Shutdown stalls
 
 - **WHEN** a closer does not finish within `shutdownTimeoutMs`
-- **THEN** an `error` line states the shutdown timed out
+- **THEN** an `error` line states the shutdown timed out, even if the event loop would otherwise be empty
 - **AND** exit is called with code 1
 
 ### Requirement: Process-level failures exit non-zero

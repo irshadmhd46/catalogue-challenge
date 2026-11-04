@@ -91,6 +91,18 @@ status, a generic message, and no framework message text.
 - **WHEN** a request body is larger than `bodyLimitBytes`
 - **THEN** the response status is 413 and `error.code` is `PAYLOAD_TOO_LARGE`
 
+#### Scenario: Malformed URL
+
+- **WHEN** `GET /%zz` is requested
+- **THEN** the response status is 400 with the `BAD_REQUEST` envelope and an `x-request-id` header
+- **AND** the body does not contain the requested path
+- **AND** exactly one `warn` line is written
+
+#### Scenario: Library error with a 4xx status is not a client error
+
+- **WHEN** a route throws a plain error that carries `statusCode` 404 but is not a framework error
+- **THEN** the response is the generic 500 envelope and one `error` line is written
+
 #### Scenario: Unsupported media type
 
 - **WHEN** a request is sent with a content type the app has no parser for
@@ -140,6 +152,11 @@ Request context fields SHALL be present on the line.
 
 - **WHEN** `GET /nope` is requested
 - **THEN** exactly one `warn` line is written with `statusCode` 404
+
+#### Scenario: Handler lines carry the request context
+
+- **WHEN** a route throws an `UpstreamError` with a `cause`
+- **THEN** the `error` line contains `reqId`, `method`, `route`, the stack and the cause message
 
 #### Scenario: Not logged twice
 

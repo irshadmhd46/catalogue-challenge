@@ -18,7 +18,7 @@ export function getRequestContext(): RequestContext | undefined {
 }
 
 export function contextOf(request: FastifyRequest): RequestContext {
-  const route = request.routeOptions.url;
+  const route = request.routeOptions?.url;
   return {
     reqId: request.id,
     method: request.method,

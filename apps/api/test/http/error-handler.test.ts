@@ -67,7 +67,7 @@ const appErrors: readonly {
     make: () => new ConfigError([{ field: 'PORT', message: 'invalid' }]),
     status: 500,
     code: 'CONFIG_INVALID',
-    message: 'Invalid configuration: PORT',
+    message: 'Invalid configuration',
     details: [{ field: 'PORT', message: 'invalid' }],
   },
 ];

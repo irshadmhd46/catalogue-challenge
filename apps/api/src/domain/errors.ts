@@ -122,9 +122,7 @@ export class ConfigError extends AppError {
   readonly httpStatus = 500;
 
   constructor(issues: ErrorDetails, options: Omit<AppErrorOptions, 'details'> = {}) {
-    super(`${PUBLIC_MESSAGES.CONFIG_INVALID}: ${issues.map((issue) => issue.field).join(', ')}`, {
-      ...options,
-      details: issues,
-    });
+    super(PUBLIC_MESSAGES.CONFIG_INVALID, { ...options, details: issues });
+    this.message = `${PUBLIC_MESSAGES.CONFIG_INVALID}: ${issues.map((issue) => issue.field).join(', ')}`;
   }
 }

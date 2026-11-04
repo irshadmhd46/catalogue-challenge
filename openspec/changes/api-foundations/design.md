@@ -106,8 +106,14 @@ behaviours (PII path censored, `err.message` still visible).
      `Retry-After`.
   2. Fastify-originated client errors (`statusCode` 400-499, e.g. invalid JSON, body too large,
      unsupported media type) -> that status; code `PAYLOAD_TOO_LARGE` for 413, `BAD_REQUEST`
-     otherwise; fixed generic message. Fastify's own message text is never returned.
+     otherwise; fixed generic message. Fastify's own message text is never returned. Only errors
+     whose `code` starts with `FST_ERR_` qualify: a library error that merely carries a 4xx
+     `statusCode` (e.g. an HTTP client response) is our failure and falls through to 3.
   3. Anything else -> 500, code `INTERNAL_ERROR`, message `Something went wrong`.
+- The same handler is passed to Fastify's `frameworkErrors` option. Without it, errors raised
+  before routing (a malformed URL such as `/%zz`) bypass the handler and return Fastify's raw body
+  (which echoes the path) with no request id and no log line. The handler therefore also sets
+  `x-request-id` itself.
 - Logging in the handler (the only place an error is logged): status 4xx -> `warn` with `code`,
   status and no stack; 5xx -> `error` with the error object (stack and `cause` chain via pino's
   error serializer).
@@ -165,13 +171,19 @@ the test runner.
 - Shutdown: idempotent (a second signal while shutting down is logged and ignored). Steps: log
   `info`, stop accepting and drain with `app.close()` (`forceCloseConnections: 'idle'`), then run
   registered closers in reverse registration order (later changes register Redis and SMTP
-  transport), log `info`, exit 0. A hard timer (`SHUTDOWN_TIMEOUT_MS`, `unref`'d) logs `error` and
-  exits 1 if shutdown stalls. A closer that throws is logged at `error`, the remaining closers
+  transport), log `info`, exit 0. A hard timer (`SHUTDOWN_TIMEOUT_MS`, deliberately not `unref`'d, so
+  an empty event loop cannot exit 0 early) logs `error` and exits 1 if shutdown stalls. A closer that throws is logged at `error`, the remaining closers
   still run, and the exit code is 1.
 - `unhandledRejection` and `uncaughtException`: log `fatal` with the error and exit 1 without
   attempting graceful shutdown (the process state is unknown; the orchestrator restarts it).
 - Alternative: try a graceful close inside `uncaughtException`. Rejected: continuing to run user
   code after an uncaught exception is unsafe, and the 10 s window can mask a crash loop.
+
+- Keep-alive sockets: Fastify's `forceCloseConnections: 'idle'` only reaps sockets that are idle at
+  the moment `close()` starts. A request in flight at that moment would leave its keep-alive socket
+  open and `close()` would wait for `keepAliveTimeout` (65 s), hitting the hard timeout. A
+  `preClose` flag plus an `onSend` hook therefore sends `Connection: close` on every response
+  finished while closing. Found by a loopback-socket test, not by the mocked unit tests.
 
 ### 11. Build and TypeScript setup
 
@@ -195,6 +207,13 @@ Pino adapter and redaction tests write to an in-memory stream and parse the JSON
   the enquiry change adds its own logging test asserting the submitted values never appear.
 - [Fastify internal errors are no longer logged by Fastify] -> `listen()`/`ready()` failures are
   caught in `main.ts`; request-time errors go through the error handler.
+- [Node-level rejections are outside the envelope: `requestTimeout` expiry (raw 408) and
+  `clientError` responses are written by Node before Fastify runs, with no envelope, request id or
+  log line] -> Accepted for a proof of concept; a `clientErrorHandler` is the next step.
+- [Framework errors raised before the hooks run (malformed URL) carry no helmet security headers]
+  -> Accepted: the body is the generic envelope and holds no content that headers protect.
+- [With `pretty` on, `process.exit(1)` right after a `fatal` line can drop it, because the
+  pino-pretty transport is asynchronous] -> Dev only; containers run JSON to stdout synchronously.
 - [A new Fastify 4xx type has an awkward code] -> It still gets a generic `BAD_REQUEST` envelope and
   a `warn` line; add a specific code when a client needs to branch on it.
 - [Hard exit on `uncaughtException` drops in-flight requests] -> Accepted; correctness over

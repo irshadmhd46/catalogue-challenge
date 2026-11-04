@@ -45,7 +45,6 @@ export function createShutdown({ app, logger, exit, timeoutMs }: ShutdownOptions
         logger.error({ timeoutMs }, 'shutdown timed out');
         exitOnce(1);
       }, timeoutMs);
-      hardStop.unref();
 
       let failed = false;
       const steps = [{ name: SERVER_STEP, close: () => app.close() }, ...[...closers].reverse()];
