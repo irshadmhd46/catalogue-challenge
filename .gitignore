@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.log
+*.tsbuildinfo
+*.bundle
+.DS_Store
+
+# Secrets: only the example file is committed
+.env
+.env.*
+!.env.example
+
+# Local agent overrides
+CLAUDE.local.md
+.claude/settings.local.json
