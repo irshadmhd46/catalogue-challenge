@@ -99,6 +99,33 @@ describe('createPinoLogger', () => {
     });
   });
 
+  it('does not leak fields from one line into the next line of the same request', () => {
+    const context = { reqId: 'abc-123', method: 'GET' };
+    const { capture, logger } = build({ getContext: () => context });
+
+    logger.warn({ reason: 'timeout', delayMs: 40 }, 'first');
+    logger.info({ statusCode: 200 }, 'second');
+    logger.debug('third');
+
+    const [first, second, third] = capture.lines();
+    expect(first).toMatchObject({ reqId: 'abc-123', reason: 'timeout', delayMs: 40 });
+    expect(second).toMatchObject({ reqId: 'abc-123', statusCode: 200 });
+    expect(second).not.toHaveProperty('reason');
+    expect(second).not.toHaveProperty('delayMs');
+    expect(third).toMatchObject({ reqId: 'abc-123' });
+    expect(third).not.toHaveProperty('statusCode');
+    expect(third).not.toHaveProperty('reason');
+  });
+
+  it('never changes the context object it was given', () => {
+    const context = { reqId: 'abc-123', method: 'GET' };
+    const { logger } = build({ getContext: () => context });
+
+    logger.info({ extra: 'field', reqId: 'overridden' }, 'line');
+
+    expect(context).toEqual({ reqId: 'abc-123', method: 'GET' });
+  });
+
   it('leaves lines without request fields when there is no context', () => {
     const { capture, logger } = build({ getContext: () => undefined });
 

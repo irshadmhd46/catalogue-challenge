@@ -55,7 +55,9 @@ export function createPinoLogger(options: PinoLoggerOptions): Logger {
     level: options.level,
     redact: { paths: [...REDACTED_PATHS], censor: '[Redacted]' },
     serializers: { err: pino.stdSerializers.errWithCause },
-    mixin: () => options.getContext?.() ?? {},
+    // pino merges each log object into what the mixin returns, so it must be a fresh copy: the
+    // shared request context would otherwise collect fields from every line of the request.
+    mixin: () => ({ ...options.getContext?.() }),
   };
 
   const inner = options.pretty

@@ -256,6 +256,14 @@ describe('FakeStoreProductSource: retries', () => {
     expect(sleeps).toEqual([100, 200]);
   });
 
+  it('rounds the delay to whole milliseconds', async () => {
+    const { source, sleeps } = setup({ random: 0.3333, steps: [json({}, 500), json(fixture())] });
+
+    await source.listProducts();
+
+    expect(sleeps).toEqual([67]);
+  });
+
   it('applies full jitter: random 0 gives no delay', async () => {
     const { source, sleeps } = setup({ random: 0, steps: [json({}, 500), json(fixture())] });
 

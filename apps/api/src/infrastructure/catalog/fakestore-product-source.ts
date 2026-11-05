@@ -220,7 +220,9 @@ export class FakeStoreProductSource implements ProductSource {
     if (retryAfter !== undefined) {
       return Math.min(retryAfter, BACKOFF_MAX_MS);
     }
-    return this.random() * Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (attempt - 1));
+    return Math.round(
+      this.random() * Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (attempt - 1)),
+    );
   }
 }
 
