@@ -1,7 +1,9 @@
 import helmet from '@fastify/helmet';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { CatalogService } from './application/catalog-service.js';
 import type { AppConfig } from './config/index.js';
 import type { Logger } from './domain/logger.js';
+import { registerCatalogueRoutes } from './http/catalogue-routes.js';
 import { createErrorHandler, registerErrorHandling } from './http/error-handler.js';
 import { HEALTH_PATH, registerHealthRoute } from './http/health.js';
 import { contextOf, runWithRequestContext } from './http/request-context.js';
@@ -13,9 +15,14 @@ const KEEP_ALIVE_TIMEOUT_MS = 65_000;
 export interface AppDependencies {
   readonly config: AppConfig;
   readonly logger: Logger;
+  readonly catalogService: CatalogService;
 }
 
-export async function buildApp({ config, logger }: AppDependencies): Promise<FastifyInstance> {
+export async function buildApp({
+  config,
+  logger,
+  catalogService,
+}: AppDependencies): Promise<FastifyInstance> {
   const handleError = createErrorHandler(logger);
   const app = Fastify({
     logger: false,
@@ -62,6 +69,7 @@ export async function buildApp({ config, logger }: AppDependencies): Promise<Fas
 
   registerErrorHandling(app, handleError);
   registerHealthRoute(app);
+  registerCatalogueRoutes(app, catalogService);
 
   return app;
 }

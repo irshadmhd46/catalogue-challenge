@@ -69,21 +69,21 @@
 
 ## 9. HTTP routes
 
-- [ ] 9.1 Implement `src/http/validation.ts`: `parseRequest(schema, input)` throwing `ValidationError` with `{ field, message }` details and never the submitted value
-- [ ] 9.2 Implement `src/http/catalogue-routes.ts` for the five endpoints under `/api/v1`; thin handlers that validate, call `CatalogService` and return the contract body; extend `AppDependencies`/`buildApp` with `catalogService`
-- [ ] 9.3 Test validation helper: field names from nested and root issues, no value echo, strict unknown keys
-- [ ] 9.4 Test endpoints against the real service over a fake source (fixture): featured exactly 5 with ids 12, 11, 3, 18, 5; no `image`/`rate` in any body; categories; category page 3 and 3; unknown category 404 `Category not found`; malformed slug 400 naming `slug`
-- [ ] 9.5 Test search endpoint: hit, no match gives `[]`, trimmed query echoed, missing/blank/101 characters/control character/repeated `q`/unknown parameter each 400 with the source never called
-- [ ] 9.6 Test product endpoint: found, unknown 404 `Product not found`, each invalid id (`abc`, `0`, `-1`, `1e3`, `007`, 20 digits) 400 with the source never called
-- [ ] 9.7 Test failure mapping: `UpstreamError` gives 502 with `requestId`, no upstream hostname in the body, exactly one `error` line; `UpstreamTimeoutError` gives 504; POST to a catalogue route and `/api/v2/featured` give the 404 envelope
-- [ ] 9.8 Whole-stack tests with the real adapters (stubbed fetch, `FakeStoreProductSource`, `CachedProductSource`, `MemoryCache`, fake clock): featured plus categories plus category page make exactly one upstream list call; after the fresh TTL with the upstream answering 500 the featured endpoint still returns 200 with the earlier data and one `warn`
+- [x] 9.1 Implement `src/http/validation.ts`: `parseRequest(schema, input)` throwing `ValidationError` with `{ field, message }` details and never the submitted value
+- [x] 9.2 Implement `src/http/catalogue-routes.ts` for the five endpoints under `/api/v1`; thin handlers that validate, call `CatalogService` and return the contract body; extend `AppDependencies`/`buildApp` with `catalogService`
+- [x] 9.3 Test validation helper: field names from nested and root issues, no value echo, strict unknown keys
+- [x] 9.4 Test endpoints against the real service over a fake source (fixture): featured exactly 5 with ids 12, 11, 3, 18, 5; no `image`/`rate` in any body; categories; category page 3 and 3; unknown category 404 `Category not found`; malformed slug 400 naming `slug`
+- [x] 9.5 Test search endpoint: hit, no match gives `[]`, trimmed query echoed, missing/blank/101 characters/control character/repeated `q`/unknown parameter each 400 with the source never called
+- [x] 9.6 Test product endpoint: found, unknown 404 `Product not found`, each invalid id (`abc`, `0`, `-1`, `1e3`, `007`, 20 digits) 400 with the source never called
+- [x] 9.7 Test failure mapping: `UpstreamError` gives 502 with `requestId`, no upstream hostname in the body, exactly one `error` line; `UpstreamTimeoutError` gives 504; POST to a catalogue route and `/api/v2/featured` give the 404 envelope
+- [x] 9.8 Whole-stack tests with the real adapters (stubbed fetch, `FakeStoreProductSource`, `CachedProductSource`, `MemoryCache`, fake clock): featured plus categories plus category page make exactly one upstream list call; after the fresh TTL with the upstream answering 500 the featured endpoint still returns 200 with the earlier data and one `warn`
 
 ## 10. Composition root and lifecycle
 
-- [ ] 10.1 Refactor `bootstrap.ts` to take `compose(config, logger)` returning the app dependencies plus named closers; register the closers with the shutdown after the server; update the existing bootstrap tests
+- [x] 10.1 Refactor `bootstrap.ts` to take `compose(config, logger)` returning the app dependencies plus named closers; register the closers with the shutdown after the server; update the existing bootstrap tests
 - [ ] 10.2 Implement the wiring in `main.ts`: select source and cache with a `switch` on the config drivers, build `fetch`-backed `FakeStoreProductSource` -> `CachedProductSource`, create `CatalogService`; for `redis` connect and `PING` first and throw a `ConfigError` naming `REDIS_URL` on failure; register the Redis `close` as a closer
 - [ ] 10.3 Test bootstrap: closers registered and run in reverse order after the server on SIGTERM; a `compose` failure with `ConfigError` for `REDIS_URL` logs `fatal` naming it, exits 1 and never listens; a Redis closer failure exits 1; memory driver makes no Redis call
-- [ ] 10.4 Extend the config summary test and `bootstrap` startup log test for the new allowlisted fields
+- [x] 10.4 Extend the config summary test and `bootstrap` startup log test for the new allowlisted fields
 
 ## 11. Verification against the real upstream
 

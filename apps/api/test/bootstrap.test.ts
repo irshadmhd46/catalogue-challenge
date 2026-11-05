@@ -1,20 +1,57 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { bootstrap, type RunningApp } from '../src/bootstrap.js';
+import { CatalogService } from '../src/application/catalog-service.js';
+import { bootstrap, type Composition, type RunningApp } from '../src/bootstrap.js';
+import { ConfigError } from '../src/domain/errors.js';
+import { FakeProductSource } from './support/fake-product-source.js';
 import { FakeLogger } from './support/fake-logger.js';
 
-function setup(env: NodeJS.ProcessEnv, listenImpl: RunningApp['listen'] = () => Promise.resolve()) {
+function setup(
+  env: NodeJS.ProcessEnv,
+  listenImpl: RunningApp['listen'] = () => Promise.resolve(),
+  composeImpl?: () => Promise<Composition>,
+) {
   const bootstrapLogger = new FakeLogger();
   const appLogger = new FakeLogger();
   const exit = vi.fn<(code: number) => void>();
+  const order: string[] = [];
   const listen = vi.fn(listenImpl);
-  const close = vi.fn(() => Promise.resolve());
+  const close = vi.fn(() => {
+    order.push('server');
+    return Promise.resolve();
+  });
   const app: RunningApp = { listen, close };
   const buildApp = vi.fn(() => Promise.resolve(app));
   const createLogger = vi.fn(() => appLogger);
+  const catalogService = new CatalogService(new FakeProductSource(), appLogger);
+  const compose = vi.fn(
+    composeImpl ??
+      (() =>
+        Promise.resolve<Composition>({
+          services: { catalogService },
+          closers: [
+            { name: 'first', close: () => (order.push('first'), Promise.resolve()) },
+            { name: 'second', close: () => (order.push('second'), Promise.resolve()) },
+          ],
+        })),
+  );
   const proc = new EventEmitter();
-  const run = () => bootstrap({ env, proc, exit, bootstrapLogger, createLogger, buildApp });
-  return { bootstrapLogger, appLogger, exit, listen, close, buildApp, createLogger, proc, run };
+  const run = () =>
+    bootstrap({ env, proc, exit, bootstrapLogger, createLogger, compose, buildApp });
+  return {
+    bootstrapLogger,
+    appLogger,
+    exit,
+    listen,
+    close,
+    buildApp,
+    createLogger,
+    compose,
+    catalogService,
+    order,
+    proc,
+    run,
+  };
 }
 
 describe('bootstrap: invalid configuration', () => {
@@ -70,18 +107,6 @@ describe('bootstrap: startup', () => {
     expect(t.exit).not.toHaveBeenCalled();
   });
 
-  it('passes the parsed config and the created logger to buildApp', async () => {
-    const t = setup({ PORT: '4321' });
-
-    await t.run();
-
-    expect(t.buildApp).toHaveBeenCalledOnce();
-    expect(t.buildApp).toHaveBeenCalledWith({
-      config: expect.objectContaining({ port: 4321 }) as unknown,
-      logger: t.appLogger,
-    });
-  });
-
   it('installs handlers so SIGTERM triggers a graceful shutdown that exits 0', async () => {
     const t = setup({});
     await t.run();
@@ -119,5 +144,95 @@ describe('bootstrap: startup', () => {
     expect(t.appLogger.at('fatal')[0]?.fields).toMatchObject({ err: failure });
     expect(t.exit).toHaveBeenCalledExactlyOnceWith(1);
     expect(t.listen).not.toHaveBeenCalled();
+  });
+});
+
+describe('bootstrap: composition', () => {
+  it('composes from the parsed config and the created logger', async () => {
+    const t = setup({ PORT: '4321' });
+
+    await t.run();
+
+    expect(t.compose).toHaveBeenCalledOnce();
+    expect(t.compose).toHaveBeenCalledWith(
+      expect.objectContaining({ port: 4321 }) as unknown,
+      t.appLogger,
+    );
+  });
+
+  it('hands the composed services to buildApp next to config and logger', async () => {
+    const t = setup({ PORT: '4321' });
+
+    await t.run();
+
+    expect(t.buildApp).toHaveBeenCalledWith({
+      config: expect.objectContaining({ port: 4321 }) as unknown,
+      logger: t.appLogger,
+      catalogService: t.catalogService,
+    });
+  });
+
+  it('closes the server first, then the composed closers in reverse order, then exits 0', async () => {
+    const t = setup({});
+    await t.run();
+
+    t.proc.emit('SIGTERM', 'SIGTERM');
+    await vi.waitFor(() => {
+      expect(t.exit).toHaveBeenCalledExactlyOnceWith(0);
+    });
+
+    expect(t.order).toEqual(['server', 'second', 'first']);
+  });
+
+  it('a failing closer is reported and exits 1', async () => {
+    const failure = new Error('redis quit failed');
+    const t = setup({}, undefined, () =>
+      Promise.resolve({
+        services: { catalogService: new CatalogService(new FakeProductSource(), new FakeLogger()) },
+        closers: [{ name: 'redis', close: () => Promise.reject(failure) }],
+      }),
+    );
+    await t.run();
+
+    t.proc.emit('SIGTERM', 'SIGTERM');
+    await vi.waitFor(() => {
+      expect(t.exit).toHaveBeenCalledExactlyOnceWith(1);
+    });
+
+    expect(t.appLogger.at('error')[0]?.fields).toMatchObject({ closer: 'redis', err: failure });
+  });
+
+  it('a ConfigError from compose logs fatal naming the variable, exits 1 and never listens', async () => {
+    const t = setup({}, undefined, () =>
+      Promise.reject(new ConfigError([{ field: 'REDIS_URL', message: 'Redis is not reachable' }])),
+    );
+
+    await t.run();
+
+    expect(t.appLogger.at('fatal')).toHaveLength(1);
+    expect(t.appLogger.at('fatal')[0]?.message).toBe('invalid configuration');
+    expect(t.appLogger.at('fatal')[0]?.fields.variables).toEqual(['REDIS_URL']);
+    expect(t.exit).toHaveBeenCalledExactlyOnceWith(1);
+    expect(t.buildApp).not.toHaveBeenCalled();
+    expect(t.listen).not.toHaveBeenCalled();
+  });
+
+  it('any other compose failure is a fatal startup failure', async () => {
+    const failure = new Error('constructor blew up');
+    const t = setup({}, undefined, () => Promise.reject(failure));
+
+    await t.run();
+
+    expect(t.appLogger.at('fatal')[0]?.message).toBe('startup failed');
+    expect(t.appLogger.at('fatal')[0]?.fields).toMatchObject({ err: failure });
+    expect(t.exit).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it('does not compose when the configuration is invalid', async () => {
+    const t = setup({ PORT: 'abc' });
+
+    await t.run();
+
+    expect(t.compose).not.toHaveBeenCalled();
   });
 });

@@ -9,6 +9,18 @@ export interface RunningApp {
   close(): Promise<unknown>;
 }
 
+export interface Closer {
+  readonly name: string;
+  readonly close: () => Promise<unknown>;
+}
+
+/** What the composition root builds from the config: the services the app needs plus cleanup. */
+export interface Composition {
+  readonly services: Omit<AppDependencies, 'config' | 'logger'>;
+  /** Closed after the HTTP server, in reverse order. */
+  readonly closers: readonly Closer[];
+}
+
 export interface BootstrapDeps {
   readonly env: NodeJS.ProcessEnv;
   readonly proc: ProcessLike;
@@ -16,6 +28,8 @@ export interface BootstrapDeps {
   /** Used until configuration has been parsed, so a bad config can still be reported. */
   readonly bootstrapLogger: Logger;
   readonly createLogger: (config: AppConfig) => Logger;
+  /** Builds adapters and services. Throw a ConfigError when a dependency is unusable. */
+  readonly compose: (config: AppConfig, logger: Logger) => Promise<Composition>;
   readonly buildApp: (deps: AppDependencies) => Promise<RunningApp>;
 }
 
@@ -27,13 +41,17 @@ export async function bootstrap(deps: BootstrapDeps): Promise<void> {
     const config = loadConfig(deps.env);
     logger = deps.createLogger(config);
 
-    const app = await deps.buildApp({ config, logger });
+    const composition = await deps.compose(config, logger);
+    const app = await deps.buildApp({ config, logger, ...composition.services });
     const shutdown = createShutdown({
       app,
       logger,
       exit: deps.exit,
       timeoutMs: config.shutdownTimeoutMs,
     });
+    for (const closer of composition.closers) {
+      shutdown.registerCloser(closer.name, closer.close);
+    }
     installProcessHandlers({ proc: deps.proc, logger, shutdown, exit: deps.exit });
 
     await app.listen({ host: config.host, port: config.port });
