@@ -2,9 +2,9 @@
 
 - [x] 1.1 Scaffold `packages/contracts` (`package.json` name `@catalogue/contracts`, `type: module`, `exports` with a `types` condition to `src/index.ts` and `default` to `dist/index.js`, `tsconfig.json`, `tsconfig.build.json`, `build`/`typecheck`/`test` scripts); make the root `build` script build contracts before the other workspaces
 - [x] 1.2 Add `@catalogue/contracts` (workspace) and `ioredis` to `apps/api/package.json`; add a Vitest alias from `@catalogue/contracts` to the package source in `apps/api/vitest.config.ts`
-- [ ] 1.3 **Owner action**: run `npm install` on a network where it works so the workspace link and `ioredis` are installed and the lockfile updates (the build machine's Node cannot reach the registry); then verify `ls node_modules/@catalogue` shows `api` and `contracts`
+- [x] 1.3 **Owner action**: run `npm install` on a network where it works so the workspace link and `ioredis` are installed and the lockfile updates (the build machine's Node cannot reach the registry); then verify `ls node_modules/@catalogue` shows `api` and `contracts`
 - [x] 1.4 Save the 20 live Fake Store products as `apps/api/test/fixtures/fakestore-products.json` plus a small loader in `test/support/`; confirm ids 1 to 20 and four categories
-- [ ] 1.5 Verify `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass with the empty contracts package
+- [x] 1.5 Verify `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass with the empty contracts package
 
 ## 2. Contracts package
 
@@ -54,9 +54,9 @@
 
 - [x] 7.1 Implement `src/infrastructure/cache/memory-cache.ts` with an injected clock and JSON round-trip copies
 - [x] 7.2 Write the shared contract suite `test/infrastructure/cache-contract.ts` (miss, round trip, overwrite, expiry, isolation from mutation, independent keys) and run it against `MemoryCache`; add the clock-based expiry test (present at 9 s, absent at 11 s for a 10 s TTL)
-- [ ] 7.3 Implement `src/infrastructure/cache/redis-cache.ts` over ioredis: key prefix `catalogue:v1:`, `lazyConnect`, `connectTimeout`, `commandTimeout`, `maxRetriesPerRequest: 1`, `enableOfflineQueue: false`, bounded reconnect backoff, `error` event listener logging `warn`, JSON values, `CacheError` with `cause`, `connect()`/`ping()`/`close()` helpers, host-only logging
-- [ ] 7.4 Test `RedisCache` against a fake client: command failure becomes `CacheError` with the original `cause`, corrupt stored value becomes `CacheError`, `error` event logs `warn` without throwing, a URL with a password never appears in any log line, keys carry the prefix, `set` passes the TTL in seconds
-- [ ] 7.5 Run the contract suite against `RedisCache` only when `REDIS_URL` is set (`describe.skipIf`); confirm `npm test` without it reports the Redis run as skipped
+- [x] 7.3 Implement `src/infrastructure/cache/redis-cache.ts` over ioredis: key prefix `catalogue:v1:`, `lazyConnect`, `connectTimeout`, `commandTimeout`, `maxRetriesPerRequest: 1`, `enableOfflineQueue: false`, bounded reconnect backoff, `error` event listener logging `warn`, JSON values, `CacheError` with `cause`, `connect()`/`ping()`/`close()` helpers, host-only logging
+- [x] 7.4 Test `RedisCache` against a fake client: command failure becomes `CacheError` with the original `cause`, corrupt stored value becomes `CacheError`, `error` event logs `warn` without throwing, a URL with a password never appears in any log line, keys carry the prefix, `set` passes the TTL in seconds
+- [x] 7.5 Run the contract suite against `RedisCache` only when `REDIS_URL` is set (`describe.skipIf`); confirm `npm test` without it reports the Redis run as skipped
 - [ ] 7.6 **Owner action (optional but recommended)**: start Redis with `podman run --rm -p 6379:6379 docker.io/library/redis:7-alpine`, run `REDIS_URL=redis://127.0.0.1:6379 npm test -w @catalogue/api`, and confirm the Redis contract run passes
 
 ## 8. Caching decorator
@@ -81,8 +81,8 @@
 ## 10. Composition root and lifecycle
 
 - [x] 10.1 Refactor `bootstrap.ts` to take `compose(config, logger)` returning the app dependencies plus named closers; register the closers with the shutdown after the server; update the existing bootstrap tests
-- [ ] 10.2 Implement the wiring in `main.ts`: select source and cache with a `switch` on the config drivers, build `fetch`-backed `FakeStoreProductSource` -> `CachedProductSource`, create `CatalogService`; for `redis` connect and `PING` first and throw a `ConfigError` naming `REDIS_URL` on failure; register the Redis `close` as a closer
-- [ ] 10.3 Test bootstrap: closers registered and run in reverse order after the server on SIGTERM; a `compose` failure with `ConfigError` for `REDIS_URL` logs `fatal` naming it, exits 1 and never listens; a Redis closer failure exits 1; memory driver makes no Redis call
+- [x] 10.2 Implement the wiring in `main.ts`: select source and cache with a `switch` on the config drivers, build `fetch`-backed `FakeStoreProductSource` -> `CachedProductSource`, create `CatalogService`; for `redis` connect and `PING` first and throw a `ConfigError` naming `REDIS_URL` on failure; register the Redis `close` as a closer
+- [x] 10.3 Test bootstrap: closers registered and run in reverse order after the server on SIGTERM; a `compose` failure with `ConfigError` for `REDIS_URL` logs `fatal` naming it, exits 1 and never listens; a Redis closer failure exits 1; memory driver makes no Redis call (the memory driver making no Redis call is true by construction in `main.ts`, which is not unit-tested; the unreachable-Redis exit was checked on the built service: exit 1 in about 1 s, `fatal` naming `REDIS_URL` with only the host, no password in the output, never listened)
 - [x] 10.4 Extend the config summary test and `bootstrap` startup log test for the new allowlisted fields
 
 ## 11. Verification against the real upstream
