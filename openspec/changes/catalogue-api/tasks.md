@@ -87,10 +87,11 @@
 
 ## 11. Verification against the real upstream
 
-- [ ] 11.1 Build and run the service locally against the live Fake Store; `curl` all five endpoints and confirm shapes, the featured ids, a category page, a search, a product, a 404 category, a 404 product (`/products/9999`, which the upstream answers 200 with an empty body) and a 400 for `/products/abc`
-- [ ] 11.2 Stale drill: warm the cache, set the fresh TTL low, break the upstream (`FAKESTORE_BASE_URL` pointing at a closed local port), and confirm 200 with the earlier data and a `warn` line; with a cold cache confirm a 502 with a `requestId` and one `error` line
+- [x] 11.1 Build and run the service and `curl` all five endpoints: featured ids, category page, search, product, 404 category, 404 product (the upstream answers an empty 200), 400s. Done from source with `tsx` against a local stand-in serving the recorded payload with the real quirks, because Node on the build machine cannot reach the real Fake Store (it times out; `curl` can)
+- [ ] 11.1b **Owner action**: repeat the same `curl` walk against the real Fake Store from your own shell (`npm run build`, `PORT=3411 node apps/api/dist/main.js`, then the five endpoints) and confirm 200s with the featured ids 12, 11, 3, 18, 5
+- [x] 11.2 Stale drill (against the stand-in, fresh TTL 2 s): warm the cache, break the upstream, wait past the TTL: featured answers 200 with the earlier data and a `serving stale cache entry` warn; an uncached product answers 502 with the caller's request id. Also seen live: a timing-out upstream gives three bounded attempts (about 10 s total, the deadline) and a 504 envelope
 - [ ] 11.3 Redis drill (owner, with podman): `CACHE_DRIVER=redis REDIS_URL=redis://127.0.0.1:6379`, confirm keys appear under `catalogue:v1:` and that stopping Redis leaves the endpoints answering (warn lines, no crash); starting with Redis stopped exits 1 naming `REDIS_URL`
-- [ ] 11.4 Run the claim checks from `security.md`: `grep` that routes call `parseRequest` before the service, that `fetch` and the upstream field names (`image`, `rating.rate`) appear only under `infrastructure/catalog`, that `process.env` is still read only in `config/`, and that no `new` of an adapter exists outside `main.ts`
+- [x] 11.4 Run the claim checks from `security.md`: `grep` that routes call `parseRequest` before the service, that `fetch` and the upstream field names (`image`, `rating.rate`) appear only under `infrastructure/catalog`, that `process.env` is still read only in `config/`, and that no `new` of an adapter exists outside `main.ts`
 
 ## 12. Quality gates and review
 
