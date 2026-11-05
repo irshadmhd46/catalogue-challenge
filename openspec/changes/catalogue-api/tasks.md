@@ -95,8 +95,8 @@
 
 ## 12. Quality gates and review
 
-- [ ] 12.1 Design principles check: SRP, DRY (limits, TTLs, counts and keys defined once), DIP, no presentation leak, immutability of cached values
-- [ ] 12.2 Run `npm run typecheck && npm run lint && npm test`, `npm run build`, `npm run test:coverage` (80%+ on `application/`, `domain/`, `infrastructure/`); run the dependency advisory check (`npm audit`, or the direct advisory query recorded in `DECISIONS.md` if the audit endpoint is unreachable)
+- [x] 12.1 Design principles check: SRP, DRY (limits, TTLs, counts and keys defined once), DIP, no presentation leak, immutability of cached values
+- [x] 12.2 Run `npm run typecheck && npm run lint && npm test`, `npm run build`, `npm run test:coverage` (80%+ on `application/`, `domain/`, `infrastructure/`); run the dependency advisory check (`npm audit`, or the direct advisory query recorded in `DECISIONS.md` if the audit endpoint is unreachable)
 - [x] 12.3 Record in `DECISIONS.md`: the Fake Store quirks (200 for missing ids, `jewelery`), top-rated and featured assumptions, fail-open cache, stale window, the unrated public read endpoints until `product-enquiry`, and the contracts resolution strategy
 - [ ] 12.4 Review gate: run the `code-reviewer` agent, then the `security-reviewer` agent; fix CRITICAL and HIGH findings, MEDIUM where cheap; save the report to `.claude/reviews/catalogue-api.md`
 - [ ] 12.5 Add anything the reviews caught that the building pass got wrong to `AI_USAGE.md`

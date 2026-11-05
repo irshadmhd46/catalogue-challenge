@@ -4,7 +4,7 @@ export const MAX_SEARCH_QUERY_LENGTH = 100;
 export const MAX_SLUG_LENGTH = 64;
 
 // No leading zero and at most 9 digits: the value always fits a double exactly.
-const PRODUCT_ID = /^[1-9][0-9]{0,8}$/;
+export const PRODUCT_ID_PATTERN = /^[1-9][0-9]{0,8}$/;
 const CATEGORY_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const NO_CONTROL_CHARACTERS = /^[^\u0000-\u001f\u007f]+$/;
@@ -13,7 +13,7 @@ export const productIdParamsSchema = z
   .object({
     id: z
       .string()
-      .regex(PRODUCT_ID, 'must be a positive whole number of at most 9 digits')
+      .regex(PRODUCT_ID_PATTERN, 'must be a positive whole number of at most 9 digits')
       .transform(Number),
   })
   .strict();

@@ -1,9 +1,9 @@
+import { PRODUCT_ID_PATTERN } from '@catalogue/contracts';
 import { z } from 'zod';
 import { ConfigError, type FieldIssue } from '../domain/errors.js';
 import { LOG_LEVELS, type LogLevelName } from '../domain/logger.js';
 
 const MAX_FEATURED_IDS = 10;
-const PRODUCT_ID = /^[1-9][0-9]{0,8}$/;
 
 const boundedInt = (defaultValue: number, min: number, max: number) =>
   z.coerce.number().int().min(min).max(max).default(defaultValue);
@@ -35,7 +35,8 @@ const redisUrl = z.string().refine((raw) => {
 
 const featuredIds = z.string().transform((raw, ctx) => {
   const parts = raw.split(',').map((part) => part.trim());
-  const valid = parts.length <= MAX_FEATURED_IDS && parts.every((part) => PRODUCT_ID.test(part));
+  const valid =
+    parts.length <= MAX_FEATURED_IDS && parts.every((part) => PRODUCT_ID_PATTERN.test(part));
   if (!valid) {
     ctx.addIssue({
       code: 'custom',
