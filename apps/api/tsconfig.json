@@ -4,7 +4,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": { "@catalogue/contracts": ["../../packages/contracts/src/index.ts"] }
   },
   "include": ["src", "test", "vitest.config.ts"]
 }

@@ -15,8 +15,10 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@catalogue/contracts": "*",
     "@fastify/helmet": "^13.2.0",
     "fastify": "^5.12.8",
+    "ioredis": "^6.0.0",
     "pino": "^10.4.0",
     "zod": "^4.6.7"
   },
