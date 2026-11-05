@@ -126,3 +126,13 @@ export class ConfigError extends AppError {
     this.message = `${PUBLIC_MESSAGES.CONFIG_INVALID}: ${issues.map((issue) => issue.field).join(', ')}`;
   }
 }
+
+/** Cache adapter failure. Callers degrade to a miss; if it ever escapes it is a generic 500. */
+export class CacheError extends AppError {
+  readonly code = ERROR_CODES.INTERNAL_ERROR;
+  readonly httpStatus = 500;
+
+  constructor(options: AppErrorOptions = {}) {
+    super(PUBLIC_MESSAGES.INTERNAL_ERROR, options);
+  }
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AppError,
+  CacheError,
   ConfigError,
   ERROR_CODES,
   NotFoundError,
@@ -47,6 +48,12 @@ const cases: readonly {
     make: () => new NotificationError(),
     code: 'NOTIFICATION_FAILED',
     status: 502,
+  },
+  {
+    name: 'CacheError',
+    make: () => new CacheError(),
+    code: 'INTERNAL_ERROR',
+    status: 500,
   },
   { name: 'ConfigError', make: () => new ConfigError([]), code: 'CONFIG_INVALID', status: 500 },
 ];
@@ -123,5 +130,15 @@ describe('AppError subclasses', () => {
 
     expect(error.details).toEqual(issues);
     expect(error.message).toContain('PORT');
+  });
+
+  it('hides the cause of a CacheError from the public message and keeps it as cause', () => {
+    const cause = new Error('ECONNREFUSED redis.internal:6379');
+
+    const error = new CacheError({ cause });
+
+    expect(error.cause).toBe(cause);
+    expect(error.publicMessage).toBe('Something went wrong');
+    expect(error.message).not.toContain('redis.internal');
   });
 });
