@@ -101,4 +101,4 @@
 - [x] 12.3b Apply the code-review findings: retry cooldown while serving stale, validation of cached values, synchronous-throw safety in the decorator, no backoff sleep past the deadline, de-duplicated featured ids, `reconnectDelayMs` extracted and table-tested, wiring moved to `src/compose.ts` and tested (driver choice, Redis fail-fast and closer, config-to-adapter mapping), `npm run smoke:build`, design/spec/DECISIONS updates
 - [x] 12.4 Review gate: run the `code-reviewer` agent, then the `security-reviewer` agent; fix CRITICAL and HIGH findings, MEDIUM where cheap; save the report to `.claude/reviews/catalogue-api.md`
 - [x] 12.5 Add anything the reviews caught that the building pass got wrong to `AI_USAGE.md`
-- [ ] 12.6 Commit in logical units (contracts, domain, service, config, fake store, caches, decorator, routes, composition, docs) using conventional commits; review `git status` and the diff before each; no remote, no push
+- [x] 12.6 Commit in logical units (contracts, domain, service, config, fake store, caches, decorator, routes, composition, docs) using conventional commits; review `git status` and the diff before each; no remote, no push
