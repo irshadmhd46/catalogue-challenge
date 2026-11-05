@@ -34,9 +34,9 @@
 
 ## 5. Configuration
 
-- [ ] 5.1 Extend `src/config/index.ts` with the ten new variables, the cross-field rules (`REDIS_URL` required for redis and `redis:`/`rediss:` only, https in production, deadline not below the attempt timeout), `featuredProductIds` parsing, and the allowlisted summary additions (`catalogDriver`, `cacheDriver`, `upstreamHost`)
-- [ ] 5.2 Test configuration: defaults, redis without URL, wrong scheme, memory driver ignoring a URL, http base URL in production vs development, malformed and non-http base URL, featured override valid and every rejected form, bounds on retries and timeouts, deadline below timeout, credentials never echoed, summary fields and absence of the Redis URL
-- [ ] 5.3 Update `.env.example` with placeholders for every new variable (no credentials)
+- [x] 5.1 Extend `src/config/index.ts` with the ten new variables, the cross-field rules (`REDIS_URL` required for redis and `redis:`/`rediss:` only, https in production, deadline not below the attempt timeout), `featuredProductIds` parsing, and the allowlisted summary additions (`catalogDriver`, `cacheDriver`, `upstreamHost`)
+- [x] 5.2 Test configuration: defaults, redis without URL, wrong scheme, memory driver ignoring a URL, http base URL in production vs development, malformed and non-http base URL, featured override valid and every rejected form, bounds on retries and timeouts, deadline below timeout, credentials never echoed, summary fields and absence of the Redis URL
+- [x] 5.3 Update `.env.example` with placeholders for every new variable (no credentials)
 
 ## 6. Fake Store product source
 
