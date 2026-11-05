@@ -52,8 +52,8 @@
 
 ## 7. Cache adapters
 
-- [ ] 7.1 Implement `src/infrastructure/cache/memory-cache.ts` with an injected clock and JSON round-trip copies
-- [ ] 7.2 Write the shared contract suite `test/infrastructure/cache-contract.ts` (miss, round trip, overwrite, expiry, isolation from mutation, independent keys) and run it against `MemoryCache`; add the clock-based expiry test (present at 9 s, absent at 11 s for a 10 s TTL)
+- [x] 7.1 Implement `src/infrastructure/cache/memory-cache.ts` with an injected clock and JSON round-trip copies
+- [x] 7.2 Write the shared contract suite `test/infrastructure/cache-contract.ts` (miss, round trip, overwrite, expiry, isolation from mutation, independent keys) and run it against `MemoryCache`; add the clock-based expiry test (present at 9 s, absent at 11 s for a 10 s TTL)
 - [ ] 7.3 Implement `src/infrastructure/cache/redis-cache.ts` over ioredis: key prefix `catalogue:v1:`, `lazyConnect`, `connectTimeout`, `commandTimeout`, `maxRetriesPerRequest: 1`, `enableOfflineQueue: false`, bounded reconnect backoff, `error` event listener logging `warn`, JSON values, `CacheError` with `cause`, `connect()`/`ping()`/`close()` helpers, host-only logging
 - [ ] 7.4 Test `RedisCache` against a fake client: command failure becomes `CacheError` with the original `cause`, corrupt stored value becomes `CacheError`, `error` event logs `warn` without throwing, a URL with a password never appears in any log line, keys carry the prefix, `set` passes the TTL in seconds
 - [ ] 7.5 Run the contract suite against `RedisCache` only when `REDIS_URL` is set (`describe.skipIf`); confirm `npm test` without it reports the Redis run as skipped
@@ -61,11 +61,11 @@
 
 ## 8. Caching decorator
 
-- [ ] 8.1 Implement `src/infrastructure/cache/cached-product-source.ts`: `{ storedAt, value }` entries with TTL fresh plus stale, fresh hit, refresh, stale-if-error with `warn` and `ageSeconds`, single flight per key cleared after settle, cache read/write errors as miss and skipped write, absence not cached, injected clock
-- [ ] 8.2 Test the decorator with a fake source, fake cache and fake clock: miss then fill under `products:all`; fresh hit calls the source once; `product:7`/`product:8` keys; absence not cached and source called twice; refresh after 61 s
-- [ ] 8.3 Test the failure paths: stale served on `UpstreamError` with exactly one `warn` carrying `ageSeconds` 300 and the key; stale window expired rethrows the same error; empty cache rethrows the same `UpstreamTimeoutError` instance; stale entry plus `undefined` from the source returns `undefined`
-- [ ] 8.4 Test concurrency and degradation: five concurrent calls make one source call; in-flight entry cleared after a failure; `get` rejecting still returns the source value with one `warn`; `set` rejecting still returns the value with one `warn`; both failing still returns the source value
-- [ ] 8.5 Test that mutating a returned list does not change the next result
+- [x] 8.1 Implement `src/infrastructure/cache/cached-product-source.ts`: `{ storedAt, value }` entries with TTL fresh plus stale, fresh hit, refresh, stale-if-error with `warn` and `ageSeconds`, single flight per key cleared after settle, cache read/write errors as miss and skipped write, absence not cached, injected clock
+- [x] 8.2 Test the decorator with a fake source, fake cache and fake clock: miss then fill under `products:all`; fresh hit calls the source once; `product:7`/`product:8` keys; absence not cached and source called twice; refresh after 61 s
+- [x] 8.3 Test the failure paths: stale served on `UpstreamError` with exactly one `warn` carrying `ageSeconds` 300 and the key; stale window expired rethrows the same error; empty cache rethrows the same `UpstreamTimeoutError` instance; stale entry plus `undefined` from the source returns `undefined`
+- [x] 8.4 Test concurrency and degradation: five concurrent calls make one source call; in-flight entry cleared after a failure; `get` rejecting still returns the source value with one `warn`; `set` rejecting still returns the value with one `warn`; both failing still returns the source value
+- [x] 8.5 Test that mutating a returned list does not change the next result
 
 ## 9. HTTP routes
 
