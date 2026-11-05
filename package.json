@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "audit:deps": "npm audit --audit-level=high"
+    "audit:deps": "npm audit --audit-level=high",
+    "smoke:build": "npm run build && node --input-type=module -e \"const c = await import('@catalogue/contracts'); if (typeof c.productSchema?.parse !== 'function') { throw new Error('built contracts package is unusable'); } console.log('built @catalogue/contracts resolves and exports productSchema');\""
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

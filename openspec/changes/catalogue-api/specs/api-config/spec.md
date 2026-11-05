@@ -54,6 +54,11 @@ Configuration SHALL include these settings, validated at startup with the defaul
 - **WHEN** `FEATURED_PRODUCT_IDS=7, 2,15`
 - **THEN** `featuredProductIds` is `[7, 2, 15]`
 
+#### Scenario: Repeated featured ids
+
+- **WHEN** `FEATURED_PRODUCT_IDS=7,2,7,15,2`
+- **THEN** `featuredProductIds` is `[7, 2, 15]`
+
 #### Scenario: Featured override rejected
 
 - **WHEN** `FEATURED_PRODUCT_IDS` is `7,x`, `0`, `7,,2`, or eleven ids

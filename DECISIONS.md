@@ -64,3 +64,22 @@ ones.
   Three resolution paths can drift, so `npm run build` stays part of verification.
 - The error envelope still lives in the API; it moves into `packages/contracts` with the web client in
   `web-storefront`.
+
+### Review follow-ups (catalogue-api)
+
+- **Composition root is `src/compose.ts`, started by `main.ts`.** The rule text says adapters are
+  created "only in `main.ts`"; the intent (one place, never inside services) is unchanged. The wiring
+  moved to an importable module because `main.ts` awaits `bootstrap` at import time, which made the
+  wiring (driver selection, Redis fail-fast, closers, config-to-adapter mapping) untestable. If the
+  literal wording in `CLAUDE.md` and `design-principles.md` should change, that is the owner's edit.
+- **Outage behaviour**: with a stale copy, requests are answered at once (15 s retry cooldown). With
+  a cold cache they each pay up to the upstream deadline (10 s) before a 502/504. A circuit breaker
+  that fails fast is the next step.
+- **One unmappable upstream product fails the whole list** (for example a category name with no ASCII
+  letters, or a rating above 5). This follows "a wrong shape is an `UpstreamError`"; skipping bad items
+  with a warning would be friendlier to a swappable source but hides data problems. Revisit with a
+  real source.
+- **Not covered by automated tests**: `UPSTREAM_TIMEOUT_MS` and `UPSTREAM_DEADLINE_MS` reaching the
+  adapter (the adapter honours them in its own tests; the wiring is checked by reading), and the
+  `dist` runtime path of `@catalogue/contracts` (covered by `npm run smoke:build`, run by hand).
+

@@ -107,6 +107,11 @@ per-attempt timeout and the remaining budget, and no retry SHALL start once the 
 - **THEN** fewer than 3 attempts are started and the call rejects with an `UpstreamTimeoutError`
   no later than the deadline
 
+#### Scenario: A backoff that does not fit is not slept
+
+- **WHEN** the time left in the budget is not longer than the computed backoff or `Retry-After`
+- **THEN** no sleep happens, no further attempt starts, and the call fails with the last failure
+
 #### Scenario: Each attempt carries an abort signal
 
 - **WHEN** the adapter calls fetch

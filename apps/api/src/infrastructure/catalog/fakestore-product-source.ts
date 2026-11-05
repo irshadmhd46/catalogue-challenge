@@ -140,6 +140,10 @@ export class FakeStoreProductSource implements ProductSource {
         break;
       }
       const delayMs = this.delayBeforeRetry(attempt, last.retryAfterMs);
+      // Sleeping through the rest of the budget would only delay the same failure.
+      if (delayMs >= this.options.deadlineMs - (this.now() - startedAt)) {
+        break;
+      }
       this.options.logger.warn(
         { target: this.host, attempt, reason: last.reason, delayMs },
         'retrying upstream call',

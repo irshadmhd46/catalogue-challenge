@@ -21,6 +21,14 @@ export interface RedisLike {
 }
 
 /**
+ * Before the first successful connection there is no retry (a wrong URL must fail startup).
+ * After it, reconnect with a growing, capped delay so one Redis blip does not end caching.
+ */
+export function reconnectDelayMs(established: boolean, attempt: number): number | null {
+  return established ? Math.min(attempt * 200, MAX_RECONNECT_DELAY_MS) : null;
+}
+
+/**
  * Commands fail at once while disconnected (no offline queue) and are bounded by a timeout, so a
  * Redis outage degrades the cache instead of hanging requests. Before the first successful
  * connection the retry strategy gives up, so a wrong URL fails startup instead of retrying forever.
@@ -33,8 +41,7 @@ export function createRedisClient(url: string): RedisLike {
     maxRetriesPerRequest: 1,
     connectTimeout: CONNECT_TIMEOUT_MS,
     commandTimeout: COMMAND_TIMEOUT_MS,
-    retryStrategy: (attempt) =>
-      established ? Math.min(attempt * 200, MAX_RECONNECT_DELAY_MS) : null,
+    retryStrategy: (attempt) => reconnectDelayMs(established, attempt),
   });
   client.once('ready', () => {
     established = true;

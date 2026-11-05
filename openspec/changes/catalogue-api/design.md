@@ -60,12 +60,16 @@ of redeclaring them.
   would be identical, and keeping them in sync is exactly the duplication `design-principles.md`
   forbids. If the internal model ever diverges, the mapper is added at `http/`, and compile errors
   show where.
-- Consumption: the package's `exports` declare a `types` condition pointing at `src/index.ts` and a
-  `default` pointing at `dist/index.js`. `tsc` and the IDE read the source; Vitest aliases the
-  package to the source; the production build compiles the package first (root `build` script runs
-  `-w @catalogue/contracts` before the rest) and Node loads `dist`.
-- Risk: three resolution paths (types, tests, runtime) can drift. Mitigation: a test imports the
-  package through the same specifier the app uses, and `npm run build` is part of verification.
+- Consumption: the package's `exports` point at `dist` (`types` -> `dist/index.d.ts`, `default` ->
+  `dist/index.js`), so a build and a Node runtime see compiled output. Day-to-day work reads the
+  source instead: `apps/api/tsconfig.json` maps `@catalogue/contracts` to `packages/contracts/src`
+  with `paths` (typecheck, ESLint, `tsx`), and Vitest aliases it to the same source. The API's
+  build config clears `paths`, so `tsc` uses the built declarations. The root `build` script builds
+  contracts first.
+- Why not `types` -> source: `tsc` would then pull a file outside the API's `rootDir` into its build
+  (error TS6059).
+- Risk: three resolution paths (source for dev, `dist` for build and runtime) can drift. Mitigation:
+  `npm run smoke:build` builds everything and imports the built package the way Node will at runtime.
 
 ### 3. Fake Store adapter: anti-corruption, validation, resilience
 
@@ -86,7 +90,8 @@ of redeclaring them.
 - **Timeout and budget**: each attempt uses `AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)` (default
   4 s). A per-call deadline (`UPSTREAM_DEADLINE_MS`, default 10 s) bounds all attempts and backoff
   together: each attempt's timeout is `min(timeout, remaining budget)`, and no retry starts once the
-  budget is spent. Without the deadline, 3 attempts of 4 s plus backoff would exceed any sensible
+  budget is spent, and a backoff that would not fit in the time left is not slept at all (the last
+  failure is returned instead). Without the deadline, 3 attempts of 4 s plus backoff would exceed any sensible
   client timeout.
 - **Retry**: only idempotent GETs, on network error, timeout, 5xx and 429, at most
   `UPSTREAM_MAX_RETRIES` (default 2) retries. Delay is full jitter over an exponential cap
@@ -125,6 +130,15 @@ of redeclaring them.
   in-flight promise (single flight), so a cache expiry under load makes one upstream call, not N.
   Cache `get`/`set` errors are caught, logged at `warn`, and treated as a miss / skipped write.
   Defaults: fresh 60 s, stale window 3600 s.
+- **Retry cooldown while serving stale**: once a refresh has failed and a stale entry is served,
+  the decorator does not call the source again for that key for 15 s (in-process, per key) and
+  serves the stale entry at once. Without it every request during an outage waits out the whole
+  upstream deadline before receiving a copy it was always going to get. After the cooldown one
+  request tries again. A cold cache (nothing to serve) has no cooldown, so those requests still
+  pay for an attempt; a circuit breaker that fails fast is a next step.
+- **Cached values are validated**: an entry is only used if its value passes the contract schema
+  (`Product[]` or `Product`); otherwise it is treated as a miss with a `warn`. A shared Redis can
+  outlive a deploy that changed the product shape under the same key prefix.
 - **Fail-open**: if the cache is down the request goes straight to the upstream (availability over
   cost). This is recorded here as the explicit decision for the cache dependency.
 - Alternatives considered: caching inside the Fake Store adapter (mixes concerns and is not
@@ -176,9 +190,11 @@ most 10). Secrets-bearing `REDIS_URL` is not in the startup summary; the allowli
 non-secret fields (`catalogDriver`, `cacheDriver`, `upstreamHost`).
 
 `bootstrap.ts` stops building the services itself: it takes a `compose(config, logger)` function
-(defined in `main.ts`) that returns the app dependencies plus a list of named closers. `main.ts`
-selects the source and cache with a plain `switch` on the driver and is the only place adapters are
-constructed. `bootstrap` registers the closers with the shutdown so Redis is closed after the HTTP
+that returns the app dependencies plus a list of named closers. `compose` lives in `src/compose.ts`,
+the composition root: it selects the source and cache with a plain `switch` on the driver and is the
+only place adapters are constructed. `main.ts` is a thin entry that starts it. Keeping the wiring in
+an importable module (rather than in `main.ts`, which awaits `bootstrap` at import time) is what
+lets it be tested with a fake Redis client and a stub `fetch`. `bootstrap` registers the closers with the shutdown so Redis is closed after the HTTP
 server (the server stops first so no request is mid-flight against a closed cache).
 
 ### 8. Failure policy per external dependency

@@ -250,6 +250,12 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
     expect(loadConfig({ FEATURED_PRODUCT_IDS: '7, 2,15' }).featuredProductIds).toEqual([7, 2, 15]);
   });
 
+  it('keeps the first occurrence when an id is repeated', () => {
+    expect(loadConfig({ FEATURED_PRODUCT_IDS: '7,2,7,15,2' }).featuredProductIds).toEqual([
+      7, 2, 15,
+    ]);
+  });
+
   it('accepts exactly ten featured ids', () => {
     const ten = Array.from({ length: 10 }, (_, i) => String(i + 1)).join(',');
 

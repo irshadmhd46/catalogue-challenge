@@ -475,6 +475,51 @@ describe('FakeStoreProductSource: timeouts and the total deadline', () => {
     expect(timeoutRequests).toEqual([4000, 2000]);
   });
 
+  it.each([
+    ['is shorter than the backoff', 4100],
+    ['equals the backoff', 4200],
+  ])(
+    'does not sleep when the time left %s, and fails with the last error',
+    async (_label, deadlineMs) => {
+      const { source, calls, sleeps } = setup({
+        timeoutsFire: true,
+        timeoutMs: 4000,
+        deadlineMs,
+        random: 1,
+        steps: [hang, hang],
+      });
+
+      await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamTimeoutError);
+      expect(calls).toHaveLength(1);
+      expect(sleeps).toEqual([]);
+    },
+  );
+
+  it('sleeps and retries when the backoff fits inside the remaining budget', async () => {
+    const { source, calls, sleeps } = setup({
+      timeoutsFire: true,
+      timeoutMs: 4000,
+      deadlineMs: 4201,
+      random: 1,
+      steps: [hang, hang],
+    });
+
+    await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamTimeoutError);
+    expect(sleeps).toEqual([200]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('does not sleep a long Retry-After through the rest of the budget', async () => {
+    const { source, calls, sleeps } = setup({
+      deadlineMs: 1000,
+      steps: [json({}, 429, { 'retry-after': '5' }), json(fixture())],
+    });
+
+    await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamError);
+    expect(calls).toHaveLength(1);
+    expect(sleeps).toEqual([]);
+  });
+
   it('does not start a retry when the deadline is already spent', async () => {
     const { source, calls } = setup({
       timeoutsFire: true,

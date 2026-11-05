@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 import { CacheError } from '../../src/domain/errors.js';
@@ -7,53 +6,11 @@ import {
   RedisCache,
   createRedisClient,
   describeRedisUrl,
-  type RedisLike,
+  reconnectDelayMs,
 } from '../../src/infrastructure/cache/redis-cache.js';
 import { FakeLogger } from '../support/fake-logger.js';
+import { FakeRedis } from '../support/fake-redis.js';
 import { describeCacheContract } from './cache-contract.js';
-
-class FakeRedis extends EventEmitter implements RedisLike {
-  readonly store = new Map<string, string>();
-  readonly calls: string[] = [];
-  readonly sets: { key: string; value: string; mode: string; seconds: number }[] = [];
-  failWith: Error | undefined;
-  disconnected = false;
-
-  get(key: string): Promise<string | null> {
-    this.calls.push(`get ${key}`);
-    return this.failWith
-      ? Promise.reject(this.failWith)
-      : Promise.resolve(this.store.get(key) ?? null);
-  }
-
-  set(key: string, value: string, mode: 'EX', seconds: number): Promise<unknown> {
-    this.calls.push(`set ${key}`);
-    if (this.failWith) return Promise.reject(this.failWith);
-    this.sets.push({ key, value, mode, seconds });
-    this.store.set(key, value);
-    return Promise.resolve('OK');
-  }
-
-  ping(): Promise<unknown> {
-    this.calls.push('ping');
-    return this.failWith ? Promise.reject(this.failWith) : Promise.resolve('PONG');
-  }
-
-  connect(): Promise<void> {
-    this.calls.push('connect');
-    return this.failWith ? Promise.reject(this.failWith) : Promise.resolve();
-  }
-
-  quit(): Promise<unknown> {
-    this.calls.push('quit');
-    return this.failWith ? Promise.reject(this.failWith) : Promise.resolve('OK');
-  }
-
-  disconnect(): void {
-    this.calls.push('disconnect');
-    this.disconnected = true;
-  }
-}
 
 function setup() {
   const client = new FakeRedis();
@@ -240,6 +197,27 @@ describe('RedisCache lifecycle', () => {
 
     expect(failure).toBeInstanceOf(CacheError);
     expect(client.disconnected).toBe(true);
+  });
+});
+
+describe('reconnectDelayMs', () => {
+  it.each([1, 2, 5, 100])(
+    'gives up (null) before the first successful connection, attempt %i',
+    (attempt) => {
+      expect(reconnectDelayMs(false, attempt)).toBeNull();
+    },
+  );
+
+  it.each([
+    [1, 200],
+    [2, 400],
+    [3, 600],
+    [9, 1800],
+    [10, 2000],
+    [11, 2000],
+    [1000, 2000],
+  ])('after the first connection, attempt %i waits %i ms (capped at 2000)', (attempt, expected) => {
+    expect(reconnectDelayMs(true, attempt)).toBe(expected);
   });
 });
 

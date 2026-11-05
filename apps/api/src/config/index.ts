@@ -44,7 +44,7 @@ const featuredIds = z.string().transform((raw, ctx) => {
     });
     return z.NEVER;
   }
-  return parts.map(Number);
+  return [...new Set(parts.map(Number))];
 });
 
 const envSchema = z

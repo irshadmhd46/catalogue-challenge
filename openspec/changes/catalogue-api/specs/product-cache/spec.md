@@ -139,6 +139,62 @@ unchanged.
 - **WHEN** an entry for a product is stale and the source resolves to `undefined`
 - **THEN** the call resolves to `undefined`, not the stale value
 
+### Requirement: Serving stale during an outage does not wait for the source
+
+After a failed refresh that was answered with a stale entry, the decorator SHALL NOT call the wrapped
+source again for that key for the retry cooldown (15 seconds by default), and SHALL serve the stale
+entry immediately. After the cooldown the next request SHALL try the source again. Cooldowns are
+per key. A key with no stale entry has no cooldown.
+
+#### Scenario: Requests inside the cooldown do not reach the source
+
+- **WHEN** a refresh failed and the stale entry was served, and two more requests arrive 5 s and 10 s
+  later
+- **THEN** the wrapped source was called once in total for the outage and both requests are
+  answered with the stale entry
+- **AND** only the failed refresh wrote a `warn` line
+
+#### Scenario: Cooldown ends
+
+- **WHEN** 15 s have passed since the failed refresh
+- **THEN** the next request calls the wrapped source again
+
+#### Scenario: A failing retry starts a new cooldown
+
+- **WHEN** the retry after a cooldown fails too
+- **THEN** a new cooldown starts and a second `warn` line is written
+
+#### Scenario: Cooldowns are per key
+
+- **WHEN** the list refresh failed and is cooling down
+- **THEN** a refresh of a product entry is still attempted
+
+#### Scenario: Cold cache has no cooldown
+
+- **WHEN** nothing is cached and the source fails twice in a row
+- **THEN** the source is called both times
+
+### Requirement: Cached values are validated before use
+
+A cached value SHALL be used only if it satisfies the contract schema (a list of products for
+`products:all`, a product for `product:<id>`). Otherwise the entry SHALL be ignored as a miss with a
+`warn` line, including as a stale fallback.
+
+#### Scenario: Old-shaped list ignored
+
+- **WHEN** the cache holds a list whose items do not satisfy the product schema
+- **THEN** the wrapped source is called and one `warn` line says the entry has an unexpected shape
+
+#### Scenario: Old-shaped entry is not served as stale
+
+- **WHEN** the cache holds an invalid entry and the wrapped source fails
+- **THEN** the call rejects with the source's error
+
+#### Scenario: Valid empty list accepted
+
+- **WHEN** the cache holds a fresh empty list
+- **THEN** it is returned without calling the source
+
 ### Requirement: Concurrent refreshes share one upstream call
 
 Concurrent calls for the same key that need a refresh SHALL share one in-flight call to the wrapped
@@ -148,6 +204,11 @@ source.
 
 - **WHEN** five concurrent `listProducts` calls arrive with an empty cache
 - **THEN** the wrapped source is called once and all five calls resolve to the same products
+
+#### Scenario: A source that throws synchronously does not poison the key
+
+- **WHEN** the wrapped source throws synchronously on the first call and works on the second
+- **THEN** the first call rejects with that error and the second call succeeds
 
 #### Scenario: In-flight entry is cleared after failure
 
