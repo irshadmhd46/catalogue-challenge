@@ -63,6 +63,9 @@ describe('bootstrap: startup', () => {
       host: '127.0.0.1',
       port: 4321,
       logLevel: 'info',
+      catalogDriver: 'fakestore',
+      cacheDriver: 'memory',
+      upstreamHost: 'fakestoreapi.com',
     });
     expect(t.exit).not.toHaveBeenCalled();
   });
