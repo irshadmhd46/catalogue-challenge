@@ -41,9 +41,11 @@ hosts or paths (rule 7).
 | 5 | Numeric config values had no upper bound. | Fixed: `REQUEST_TIMEOUT_MS` and `SHUTDOWN_TIMEOUT_MS` max 120000, `BODY_LIMIT_BYTES` max 1 MiB, tested at the boundary. |
 | 6 | Caller-supplied request ids can collide with other ids. | Accepted: `reqId` is for log correlation only, never authorisation. |
 
-## 3. Dependency audit: NOT VERIFIED
+## 3. Dependency audit: verified by direct advisory query
 
-`npm audit --audit-level=high` could not run from the build machine: Node's TLS connection to the
-npm audit endpoint is reset (`ECONNRESET`), although `curl` reaches the registry. The owner must
-run `npm audit --audit-level=high` from a network where it works before hand-off and record any
-exception in `DECISIONS.md` (not created yet).
+`npm audit` itself cannot run on the build machine or the owner's machine: Node's TLS connection
+to the audit endpoint is reset (`ECONNRESET`), although `curl` reaches the registry. The lockfile's
+266 package/version pairs were instead POSTed to the registry's bulk advisories endpoint with
+`curl`. Result: no high or critical advisories; one moderate (`minimatch` 10.2.6 via
+`typescript-eslint`, dev only). Recorded in `DECISIONS.md`. Re-run `npm audit` from a working
+network before hand-off.
