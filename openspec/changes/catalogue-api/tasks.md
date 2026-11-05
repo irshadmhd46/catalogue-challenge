@@ -40,15 +40,15 @@
 
 ## 6. Fake Store product source
 
-- [ ] 6.1 Implement the upstream schema and mapper in `src/infrastructure/catalog/fakestore-mapper.ts` (upstream types stay private to this folder)
-- [ ] 6.2 Test the mapper: product 1 mapped field by field with no `image`/`rate` left, slug derivation table, all 20 fixture products satisfy the contract schema, missing `rating`, non-finite price, non-URL image, extra upstream fields stripped
-- [ ] 6.3 Implement `src/infrastructure/catalog/fakestore-product-source.ts`: GET only, URL from base URL and validated id, `redirect: 'manual'`, per-attempt `AbortSignal.timeout`, total deadline, retry on network/timeout/5xx/429 with jittered backoff and capped `Retry-After`, 1 MiB body cap, empty-200 and 404 as not found for `findProduct`, typed error mapping with `cause`, debug/warn logging with host only
-- [ ] 6.4 Test success paths: list returns mapped products, find returns one, URL and method and `accept` header and `redirect: 'manual'` and abort signal asserted on the fetch call
-- [ ] 6.5 Test not-found: empty 200 body and 404 give `undefined` with a single fetch call; empty list body is an `UpstreamError`
-- [ ] 6.6 Test retries with fake `sleep` and `random`: 503 then 200 (2 fetches, 1 sleep), retries exhausted (exactly 3 fetches, `UpstreamError`), backoff values 100 and 200 at random 0.5, cap at 1500, `Retry-After: 1` gives 1000 and `Retry-After: 120` gives 1500, network `TypeError` retried
-- [ ] 6.7 Test non-retryable and invalid payload paths: 400, 401, 403, 302 give one fetch and `UpstreamError`; invalid JSON, wrong top-level type, product missing a field, oversized body, each give `UpstreamError` with one fetch
-- [ ] 6.8 Test timeout and deadline: attempt timeouts give `UpstreamTimeoutError`; a deadline shorter than three attempts stops starting new ones; timeout then success retries and succeeds
-- [ ] 6.9 Test logging: first-attempt success writes one `debug` with `target` host, `status`, `attempt`, numeric `durationMs`; a retry writes one `warn` with `attempt`, `reason`, `delayMs`; exhaustion writes no `error`; no log line contains the full URL
+- [x] 6.1 Implement the upstream schema and mapper in `src/infrastructure/catalog/fakestore-mapper.ts` (upstream types stay private to this folder)
+- [x] 6.2 Test the mapper: product 1 mapped field by field with no `image`/`rate` left, slug derivation table, all 20 fixture products satisfy the contract schema, missing `rating`, non-finite price, non-URL image, extra upstream fields stripped
+- [x] 6.3 Implement `src/infrastructure/catalog/fakestore-product-source.ts`: GET only, URL from base URL and validated id, `redirect: 'manual'`, per-attempt `AbortSignal.timeout`, total deadline, retry on network/timeout/5xx/429 with jittered backoff and capped `Retry-After`, 1 MiB body cap, empty-200 and 404 as not found for `findProduct`, typed error mapping with `cause`, debug/warn logging with host only
+- [x] 6.4 Test success paths: list returns mapped products, find returns one, URL and method and `accept` header and `redirect: 'manual'` and abort signal asserted on the fetch call
+- [x] 6.5 Test not-found: empty 200 body and 404 give `undefined` with a single fetch call; empty list body is an `UpstreamError`
+- [x] 6.6 Test retries with fake `sleep` and `random`: 503 then 200 (2 fetches, 1 sleep), retries exhausted (exactly 3 fetches, `UpstreamError`), backoff values 100 and 200 at random 0.5, cap at 1500, `Retry-After: 1` gives 1000 and `Retry-After: 120` gives 1500, network `TypeError` retried
+- [x] 6.7 Test non-retryable and invalid payload paths: 400, 401, 403, 302 give one fetch and `UpstreamError`; invalid JSON, wrong top-level type, product missing a field, oversized body, each give `UpstreamError` with one fetch
+- [x] 6.8 Test timeout and deadline: attempt timeouts give `UpstreamTimeoutError`; a deadline shorter than three attempts stops starting new ones; timeout then success retries and succeeds
+- [x] 6.9 Test logging: first-attempt success writes one `debug` with `target` host, `status`, `attempt`, numeric `durationMs`; a retry writes one `warn` with `attempt`, `reason`, `delayMs`; exhaustion writes no `error`; no log line contains the full URL
 
 ## 7. Cache adapters
 
