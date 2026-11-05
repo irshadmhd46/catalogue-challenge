@@ -1,36 +1,36 @@
 ## 1. Workspace, dependencies and fixture
 
-- [ ] 1.1 Scaffold `packages/contracts` (`package.json` name `@catalogue/contracts`, `type: module`, `exports` with a `types` condition to `src/index.ts` and `default` to `dist/index.js`, `tsconfig.json`, `tsconfig.build.json`, `build`/`typecheck`/`test` scripts); make the root `build` script build contracts before the other workspaces
-- [ ] 1.2 Add `@catalogue/contracts` (workspace) and `ioredis` to `apps/api/package.json`; add a Vitest alias from `@catalogue/contracts` to the package source in `apps/api/vitest.config.ts`
+- [x] 1.1 Scaffold `packages/contracts` (`package.json` name `@catalogue/contracts`, `type: module`, `exports` with a `types` condition to `src/index.ts` and `default` to `dist/index.js`, `tsconfig.json`, `tsconfig.build.json`, `build`/`typecheck`/`test` scripts); make the root `build` script build contracts before the other workspaces
+- [x] 1.2 Add `@catalogue/contracts` (workspace) and `ioredis` to `apps/api/package.json`; add a Vitest alias from `@catalogue/contracts` to the package source in `apps/api/vitest.config.ts`
 - [ ] 1.3 **Owner action**: run `npm install` on a network where it works so the workspace link and `ioredis` are installed and the lockfile updates (the build machine's Node cannot reach the registry); then verify `ls node_modules/@catalogue` shows `api` and `contracts`
-- [ ] 1.4 Save the 20 live Fake Store products as `apps/api/test/fixtures/fakestore-products.json` plus a small loader in `test/support/`; confirm ids 1 to 20 and four categories
+- [x] 1.4 Save the 20 live Fake Store products as `apps/api/test/fixtures/fakestore-products.json` plus a small loader in `test/support/`; confirm ids 1 to 20 and four categories
 - [ ] 1.5 Verify `npm run typecheck`, `npm run lint`, `npm test` and `npm run build` all pass with the empty contracts package
 
 ## 2. Contracts package
 
-- [ ] 2.1 Implement `packages/contracts/src`: `productSchema`, `categorySchema` (both `.strict()`), the five response schemas, `productIdParamSchema`, `categorySlugParamSchema`, `searchQuerySchema` (strict), inferred types, one `index.ts`
-- [ ] 2.2 Test the product and category schemas: valid parse, rating over 5, negative price, id 0, non-URL image, extra `image` property rejected
-- [ ] 2.3 Test response schemas: each of the five bodies parses; a bare array fails the featured response
-- [ ] 2.4 Test request schemas as tables: valid id/slug/query, every invalid id, slug and query from the spec, unknown query parameter rejected, repeated `q` rejected, and issue messages never contain the submitted value
+- [x] 2.1 Implement `packages/contracts/src`: `productSchema`, `categorySchema` (both `.strict()`), the five response schemas, `productIdParamSchema`, `categorySlugParamSchema`, `searchQuerySchema` (strict), inferred types, one `index.ts`
+- [x] 2.2 Test the product and category schemas: valid parse, rating over 5, negative price, id 0, non-URL image, extra `image` property rejected
+- [x] 2.3 Test response schemas: each of the five bodies parses; a bare array fails the featured response
+- [x] 2.4 Test request schemas as tables: valid id/slug/query, every invalid id, slug and query from the spec, unknown query parameter rejected, repeated `q` rejected, and issue messages never contain the submitted value
 
 ## 3. Domain: catalogue rules, ports and CacheError
 
-- [ ] 3.1 Write `test/domain/catalog.test.ts` (RED): `slugify` table (`men's clothing`, `women's clothing`, `jewelery`, `Home & Garden`, leading/trailing/repeated separators), category display name capitalisation, `byRating` on real ties (12, 11, 3, 18), equal rating and count falls back to id, input array not mutated
-- [ ] 3.2 Implement `src/domain/catalog.ts` (GREEN): `FEATURED_COUNT`, `CATEGORY_TOP_COUNT`, `slugify`, `categoryOf`, `byRating`; re-export `Product` and `Category` types from the contracts package
-- [ ] 3.3 Add the `ProductSource` and `Cache` ports in `src/domain/ports` files (one interface per file or one `ports.ts`), with doc comments stating the failure contract
-- [ ] 3.4 Add `CacheError` to `src/domain/errors.ts` (code `INTERNAL_ERROR`, status 500, generic public message) and extend `errors.test.ts`: code/status, cause preserved, public message hides the cause
+- [x] 3.1 Write `test/domain/catalog.test.ts` (RED): `slugify` table (`men's clothing`, `women's clothing`, `jewelery`, `Home & Garden`, leading/trailing/repeated separators), category display name capitalisation, `byRating` on real ties (12, 11, 3, 18), equal rating and count falls back to id, input array not mutated
+- [x] 3.2 Implement `src/domain/catalog.ts` (GREEN): `FEATURED_COUNT`, `CATEGORY_TOP_COUNT`, `slugify`, `categoryOf`, `byRating`; re-export `Product` and `Category` types from the contracts package
+- [x] 3.3 Add the `ProductSource` and `Cache` ports in `src/domain/ports` files (one interface per file or one `ports.ts`), with doc comments stating the failure contract
+- [x] 3.4 Add `CacheError` to `src/domain/errors.ts` (code `INTERNAL_ERROR`, status 500, generic public message) and extend `errors.test.ts`: code/status, cause preserved, public message hides the cause
 
 ## 4. CatalogService (service layer: tests first)
 
-- [ ] 4.1 Add test support: `FakeProductSource` (records calls, can be told to reject, returns fixture copies) and use `FakeLogger`
-- [ ] 4.2 Write `test/application/catalog-service.test.ts` (RED) for ranking: first four ids on the fixture, input not mutated and not returned
-- [ ] 4.3 RED for `featured()`: default exactly 5 with ids 12, 11, 3, 18, 5; override order kept; unknown override ids skipped with one `warn` naming them; override entirely unknown falls back with `warn`; source failure propagates the same error instance
-- [ ] 4.4 RED for `categories()`: four slugs in order; slug collision keeps the first and warns once
-- [ ] 4.5 RED for `categoryPage()`: electronics gives 3 and 3 with no overlap and correct rank order; 2-product category gives 2 and 0; unknown slug throws `NotFoundError` (resource `category`) after exactly one `listProducts` call and no `findProduct`
-- [ ] 4.6 RED for `search()`: title, description and category-name matches, case-insensitive, ranking order, no match gives `[]`, `.*` and `(` are literal
-- [ ] 4.7 RED for `find()`: found calls `findProduct` once with the id; `undefined` throws `NotFoundError` (resource `product`); source failure propagates
-- [ ] 4.8 Implement `src/application/catalog-service.ts` (GREEN) taking `ProductSource`, `Logger` and `featuredProductIds` by constructor; no HTTP, no framework imports, no sorting in place
-- [ ] 4.9 REFACTOR and run the mutation check on each test (delete the production line, does the test fail?); confirm every stub in the fake source is used
+- [x] 4.1 Add test support: `FakeProductSource` (records calls, can be told to reject, returns fixture copies) and use `FakeLogger`
+- [x] 4.2 Write `test/application/catalog-service.test.ts` (RED) for ranking: first four ids on the fixture, input not mutated and not returned
+- [x] 4.3 RED for `featured()`: default exactly 5 with ids 12, 11, 3, 18, 5; override order kept; unknown override ids skipped with one `warn` naming them; override entirely unknown falls back with `warn`; source failure propagates the same error instance
+- [x] 4.4 RED for `categories()`: four slugs in order; slug collision keeps the first and warns once
+- [x] 4.5 RED for `categoryPage()`: electronics gives 3 and 3 with no overlap and correct rank order; 2-product category gives 2 and 0; unknown slug throws `NotFoundError` (resource `category`) after exactly one `listProducts` call and no `findProduct`
+- [x] 4.6 RED for `search()`: title, description and category-name matches, case-insensitive, ranking order, no match gives `[]`, `.*` and `(` are literal
+- [x] 4.7 RED for `find()`: found calls `findProduct` once with the id; `undefined` throws `NotFoundError` (resource `product`); source failure propagates
+- [x] 4.8 Implement `src/application/catalog-service.ts` (GREEN) taking `ProductSource`, `Logger` and `featuredProductIds` by constructor; no HTTP, no framework imports, no sorting in place
+- [x] 4.9 REFACTOR and run the mutation check on each test (delete the production line, does the test fail?); confirm every stub in the fake source is used
 
 ## 5. Configuration
 
