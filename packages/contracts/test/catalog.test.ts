@@ -27,6 +27,7 @@ describe('productSchema', () => {
     ['empty title', { title: '' }],
     ['non-URL image', { imageUrl: 'not a url' }],
     ['javascript: image', { imageUrl: 'javascript:alert(1)' }],
+    ['image URL over 2048 characters', { imageUrl: `https://img.test/${'a'.repeat(2048)}` }],
     ['ftp image', { imageUrl: 'ftp://img.test/1.png' }],
     ['empty category slug', { category: { slug: '', name: 'X' } }],
   ])('rejects %s', (_label, override) => {

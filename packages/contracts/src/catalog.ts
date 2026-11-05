@@ -14,7 +14,7 @@ export const productSchema = z
     description: z.string().max(5000),
     price: z.number().nonnegative(),
     category: categorySchema,
-    imageUrl: z.url({ protocol: /^https?$/ }),
+    imageUrl: z.url({ protocol: /^https?$/ }).max(2048),
     rating: z
       .object({
         average: z.number().min(0).max(5),

@@ -426,6 +426,27 @@ describe('CachedProductSource: cached values are validated', () => {
     expect(inner.findCalls).toEqual([7]);
   });
 
+  it("ignores a valid product cached under another product's key, with a warning", async () => {
+    const { source, inner, memory, logger, clock } = setup();
+    await memory.set('product:7', entryWith(productWith({ id: 8 }), clock), 600);
+
+    const product = await source.findProduct(7);
+
+    expect(product?.id).toBe(7);
+    expect(inner.findCalls).toEqual([7]);
+    expect(logger.at('warn').map((r) => r.message)).toEqual([
+      'ignoring cache entry with an unexpected shape',
+    ]);
+  });
+
+  it('does not serve a mismatched product as stale when the source fails', async () => {
+    const { source, inner, memory, clock } = setup();
+    await memory.set('product:7', entryWith(productWith({ id: 8 }), clock), 600);
+    inner.failure = new UpstreamError();
+
+    await expect(source.findProduct(7)).rejects.toBe(inner.failure);
+  });
+
   it('does not serve an invalid stale entry when the source also fails', async () => {
     const { source, inner, memory, clock } = setup();
     await memory.set('products:all', entryWith([{ id: 1 }], clock), 600);

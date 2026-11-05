@@ -50,8 +50,10 @@ ones.
 - **Total upstream deadline** (10 s default): three attempts of 4 s plus backoff would otherwise run
   past any sensible client timeout. Each attempt's timeout shrinks to the remaining budget.
 - **Absence is not cached**: a lookup of a product that does not exist always reaches the upstream.
-  Cached products are bounded by the catalogue size; unknown ids are not cached, which is why ids are
-  bounded to 9 digits and why rate limiting (below) matters.
+  Cached products are bounded by the catalogue size, but each distinct unknown id costs one upstream
+  call (single flight is per key, so unique ids are not collapsed). The 9-digit bound is for numeric
+  precision, not load; rate limiting (below) is what bounds this, and it must cover
+  `/api/v1/products/:id` too.
 - One list call feeds featured, categories, category pages and search, so those never cost an extra
   upstream request.
 
@@ -82,4 +84,14 @@ ones.
 - **Not covered by automated tests**: `UPSTREAM_TIMEOUT_MS` and `UPSTREAM_DEADLINE_MS` reaching the
   adapter (the adapter honours them in its own tests; the wiring is checked by reading), and the
   `dist` runtime path of `@catalogue/contracts` (covered by `npm run smoke:build`, run by hand).
+
+### Untrusted content
+
+- Upstream product text (`title`, `description`, category names) and `imageUrl` are untrusted. The API
+  returns them as JSON with `application/json` and `nosniff`, which is safe, but the web client must
+  render them as text (never `dangerouslySetInnerHTML`) and should restrict `img-src` to the image
+  host; `imageUrl` is limited to http(s) and 2048 characters and should be upgraded to https where
+  the source allows it.
+- A cached product is only used if it is the product its key names, so a corrupted or tampered shared
+  cache entry cannot answer for another id.
 

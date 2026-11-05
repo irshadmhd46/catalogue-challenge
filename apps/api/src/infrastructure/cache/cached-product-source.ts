@@ -9,7 +9,9 @@ const LIST_KEY = 'products:all';
 const DEFAULT_STALE_RETRY_AFTER_SECONDS = 15;
 const productListSchema = z.array(productSchema);
 const isProductList = (value: unknown) => productListSchema.safeParse(value).success;
-const isProduct = (value: unknown) => productSchema.safeParse(value).success;
+/** A cached product must also be the product its key says it is. */
+const isProductWithId = (id: number) => (value: unknown) =>
+  productSchema.safeParse(value).data?.id === id;
 const productKey = (id: number) => `product:${String(id)}`;
 
 interface Entry<T> {
@@ -66,7 +68,7 @@ export class CachedProductSource implements ProductSource {
     return this.through<Product | undefined>(
       productKey(id),
       () => this.options.inner.findProduct(id),
-      isProduct,
+      isProductWithId(id),
     );
   }
 
