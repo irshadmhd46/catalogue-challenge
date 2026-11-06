@@ -1,6 +1,6 @@
 ## 1. Dependencies and local environment
 
-- [ ] 1.1 Add `nodemailer` to `apps/api` dependencies and `@types/nodemailer` to its devDependencies
+- [x] 1.1 Add `nodemailer` to `apps/api` dependencies and `@types/nodemailer` to its devDependencies
 - [ ] 1.2 **Owner action**: run `npm install` on a network where it works (the build machine's Node cannot reach the registry), then confirm `node_modules/nodemailer` exists and `package-lock.json` only lists registry.npmjs.org URLs
 - [ ] 1.3 Read the installed `nodemailer` typings and confirm the API the design assumes (`createTransport`, `jsonTransport`, `sendMail` result, `close`, `requireTLS`, `ignoreTLS`, the error `code`/`command`/`responseCode` properties); note any difference in the design before coding
 - [ ] 1.4 Add a minimal `compose.yaml`: `mailpit` (`docker.io/axllent/mailpit`, SMTP 1025 and UI 8025) and a `redis` service (`docker.io/library/redis:7-alpine`, port 6379) under the `redis` profile; no privileged ports, no secrets
