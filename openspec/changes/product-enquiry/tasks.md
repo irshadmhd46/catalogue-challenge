@@ -1,8 +1,8 @@
 ## 1. Dependencies and local environment
 
 - [x] 1.1 Add `nodemailer` to `apps/api` dependencies and `@types/nodemailer` to its devDependencies
-- [ ] 1.2 **Owner action**: run `npm install` on a network where it works (the build machine's Node cannot reach the registry), then confirm `node_modules/nodemailer` exists and `package-lock.json` only lists registry.npmjs.org URLs
-- [ ] 1.3 Read the installed `nodemailer` typings and confirm the API the design assumes (`createTransport`, `jsonTransport`, `sendMail` result, `close`, `requireTLS`, `ignoreTLS`, the error `code`/`command`/`responseCode` properties); note any difference in the design before coding
+- [x] 1.2 **Owner action**: run `npm install` on a network where it works (the build machine's Node cannot reach the registry), then confirm `node_modules/nodemailer` exists and `package-lock.json` only lists registry.npmjs.org URLs
+- [x] 1.3 Read the installed `nodemailer` typings and confirm the API the design assumes (`createTransport`, `jsonTransport`, `sendMail` result, `close`, `requireTLS`, `ignoreTLS`, the error `code`/`command`/`responseCode` properties); note any difference in the design before coding (confirmed: nodemailer 10.3.1 CommonJS with `@types/nodemailer` 8.0.2; `createTransport`, `close`, `requireTLS`, `ignoreTLS` and the three timeouts exist; connection failures report `code=ESOCKET command=CONN`; header names are normalised, e.g. `X-Enquiry-ID`)
 - [ ] 1.4 Add a minimal `compose.yaml`: `mailpit` (`docker.io/axllent/mailpit`, SMTP 1025 and UI 8025) and a `redis` service (`docker.io/library/redis:7-alpine`, port 6379) under the `redis` profile; no privileged ports, no secrets
 
 ## 2. Contracts: enquiry schemas
@@ -39,11 +39,11 @@
 
 - [x] 6.1 Implement `src/infrastructure/mail/enquiry-email.ts`: `buildEnquiryEmail(enquiry, { from, to })` as a pure function with `sanitiseHeader` (control characters including C1 and U+2028/2029 removed, whitespace collapsed, subject truncated to 150 with an ellipsis)
 - [x] 6.2 Test the builder as tables: fixed from and to, `replyTo` with sanitised name, no cc/bcc/html/attachments, subject format, injection in name and in product title (CR, LF, U+2028, U+2029, NUL), 500-character title, body content with and without phone, multi-line message unchanged, HTML in the message verbatim, `X-Enquiry-Id` header, visitor address only in `replyTo` and body
-- [ ] 6.3 Implement `src/infrastructure/mail/smtp-enquiry-notifier.ts`: `MailTransport` interface, `SmtpEnquiryNotifier` (one `sendMail` per enquiry, total deadline race, errors rebuilt from `code`/`command`/`responseCode`, `close()`), and `createSmtpTransport(config)` with the timeouts, TLS mode and optional auth
-- [ ] 6.4 Test through nodemailer's `jsonTransport`: the serialised message has the right headers and body, no Bcc after a hostile name, and one transport call per send
+- [x] 6.3 Implement `src/infrastructure/mail/smtp-enquiry-notifier.ts`: `MailTransport` interface, `SmtpEnquiryNotifier` (one `sendMail` per enquiry, total deadline race, errors rebuilt from `code`/`command`/`responseCode`, `close()`), and `createSmtpTransport(config)` with the timeouts, TLS mode and optional auth
+- [x] 6.4 Test through nodemailer's `jsonTransport`: the serialised message has the right headers and body, no Bcc after a hostile name, and one transport call per send (done over the real wire format with an in-process loopback SMTP server instead of `jsonTransport`, because `jsonTransport` does not serialise headers)
 - [x] 6.5 Test failure mapping with stub transports: `EAUTH` with a response containing the visitor's address (neither error, cause nor serialised form contains it), `ECONNREFUSED`, a non-Error rejection, the message text of the cause, `cause` never holding the raw response
 - [x] 6.6 Test the deadline with fake timers: a slow transport rejects with `NotificationError` at the deadline, a late success changes nothing and is not an unhandled rejection, and the transport was called once
-- [ ] 6.7 Test `createSmtpTransport` options: timeouts equal `SMTP_TIMEOUT_MS`, pooling off, `starttls` sets `requireTLS`, `tls` sets `secure`, `none` sets `ignoreTLS`, credentials passed only as a pair, the password never appears in a thrown error or the transport's logged options
+- [x] 6.7 Test `createSmtpTransport` options: timeouts equal `SMTP_TIMEOUT_MS`, pooling off, `starttls` sets `requireTLS`, `tls` sets `secure`, `none` sets `ignoreTLS`, credentials passed only as a pair, the password never appears in a thrown error or the transport's logged options
 - [x] 6.8 Test `close()` calls the transport's close once
 
 ## 7. Rate limiting adapters
