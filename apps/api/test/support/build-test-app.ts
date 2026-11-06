@@ -4,8 +4,10 @@ import { CatalogService } from '../../src/application/catalog-service.js';
 import { loadConfig, type AppConfig } from '../../src/config/index.js';
 import type { Logger } from '../../src/domain/logger.js';
 import type { ProductSource } from '../../src/domain/product-source.js';
+import type { RateLimiter } from '../../src/domain/rate-limiter.js';
 import { getRequestContext } from '../../src/http/request-context.js';
 import { createPinoLogger } from '../../src/infrastructure/logging/pino-logger.js';
+import { MemoryRateLimiter } from '../../src/infrastructure/rate-limit/memory-rate-limiter.js';
 import { FakeLogger } from './fake-logger.js';
 import { FakeProductSource } from './fake-product-source.js';
 import { captureLogs, type LogCapture } from './log-capture.js';
@@ -16,6 +18,8 @@ export interface CatalogueOptions {
   /** Defaults to a fake source holding the 20 recorded products. */
   readonly source?: ProductSource;
   readonly featuredProductIds?: readonly number[];
+  /** Defaults to a memory limiter with the real clock. */
+  readonly rateLimiter?: RateLimiter;
 }
 
 function catalogServiceFor(logger: Logger, options: CatalogueOptions): CatalogService {
@@ -42,7 +46,12 @@ export async function buildAppWithFakeLogger(
 ): Promise<FakeLoggerApp> {
   const logger = new FakeLogger();
   const catalogService = catalogServiceFor(logger, catalogue);
-  const app = await buildApp({ config: testConfig(overrides), logger, catalogService });
+  const app = await buildApp({
+    config: testConfig(overrides),
+    logger,
+    catalogService,
+    rateLimiter: catalogue.rateLimiter ?? new MemoryRateLimiter(),
+  });
   return { app, logger };
 }
 
@@ -66,6 +75,11 @@ export async function buildAppWithPinoLogger(
     getContext: getRequestContext,
   });
   const catalogService = catalogServiceFor(logger, catalogue);
-  const app = await buildApp({ config, logger, catalogService });
+  const app = await buildApp({
+    config,
+    logger,
+    catalogService,
+    rateLimiter: catalogue.rateLimiter ?? new MemoryRateLimiter(),
+  });
   return { app, logger, capture };
 }

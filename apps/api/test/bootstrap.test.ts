@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../src/application/catalog-service.js';
 import { bootstrap, type Composition, type RunningApp } from '../src/bootstrap.js';
 import { ConfigError } from '../src/domain/errors.js';
+import { MemoryRateLimiter } from '../src/infrastructure/rate-limit/memory-rate-limiter.js';
 import { FakeProductSource } from './support/fake-product-source.js';
 import { FakeLogger } from './support/fake-logger.js';
 
@@ -24,11 +25,12 @@ function setup(
   const buildApp = vi.fn(() => Promise.resolve(app));
   const createLogger = vi.fn(() => appLogger);
   const catalogService = new CatalogService(new FakeProductSource(), appLogger);
+  const rateLimiter = new MemoryRateLimiter();
   const compose = vi.fn(
     composeImpl ??
       (() =>
         Promise.resolve<Composition>({
-          services: { catalogService },
+          services: { catalogService, rateLimiter },
           closers: [
             { name: 'first', close: () => (order.push('first'), Promise.resolve()) },
             { name: 'second', close: () => (order.push('second'), Promise.resolve()) },
@@ -48,6 +50,7 @@ function setup(
     createLogger,
     compose,
     catalogService,
+    rateLimiter,
     order,
     proc,
     run,
@@ -171,6 +174,7 @@ describe('bootstrap: composition', () => {
       config: expect.objectContaining({ port: 4321 }) as unknown,
       logger: t.appLogger,
       catalogService: t.catalogService,
+      rateLimiter: t.rateLimiter,
     });
   });
 
@@ -190,7 +194,10 @@ describe('bootstrap: composition', () => {
     const failure = new Error('redis quit failed');
     const t = setup({}, undefined, () =>
       Promise.resolve({
-        services: { catalogService: new CatalogService(new FakeProductSource(), new FakeLogger()) },
+        services: {
+          catalogService: new CatalogService(new FakeProductSource(), new FakeLogger()),
+          rateLimiter: new MemoryRateLimiter(),
+        },
         closers: [{ name: 'redis', close: () => Promise.reject(failure) }],
       }),
     );

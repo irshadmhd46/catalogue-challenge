@@ -4,6 +4,7 @@ import type { AppConfig } from './config/index.js';
 import type { Cache } from './domain/cache.js';
 import { ConfigError } from './domain/errors.js';
 import type { Logger } from './domain/logger.js';
+import type { RateLimiter } from './domain/rate-limiter.js';
 import type { ProductSource } from './domain/product-source.js';
 import { CachedProductSource } from './infrastructure/cache/cached-product-source.js';
 import { MemoryCache } from './infrastructure/cache/memory-cache.js';
@@ -14,6 +15,8 @@ import {
   type RedisLike,
 } from './infrastructure/cache/redis-cache.js';
 import { FakeStoreProductSource } from './infrastructure/catalog/fakestore-product-source.js';
+import { MemoryRateLimiter } from './infrastructure/rate-limit/memory-rate-limiter.js';
+import { RedisRateLimiter } from './infrastructure/rate-limit/redis-rate-limiter.js';
 
 /** The only parts of the outside world the wiring touches, replaceable in tests. */
 export interface ComposeDeps {
@@ -23,18 +26,20 @@ export interface ComposeDeps {
 
 const realDeps: ComposeDeps = { createRedis: createRedisClient };
 
-async function createCache(
+/** The cache and the rate limiter share one backing store: memory, or a single Redis connection. */
+async function createStores(
   config: AppConfig,
   logger: Logger,
   deps: ComposeDeps,
-): Promise<{ cache: Cache; closers: Closer[] }> {
+): Promise<{ cache: Cache; rateLimiter: RateLimiter; closers: Closer[] }> {
   switch (config.cacheDriver) {
     case 'memory':
-      return { cache: new MemoryCache(), closers: [] };
+      return { cache: new MemoryCache(), rateLimiter: new MemoryRateLimiter(), closers: [] };
     case 'redis': {
       // Config validation guarantees a URL for this driver.
       const url = config.redisUrl ?? '';
-      const cache = new RedisCache(deps.createRedis(url), logger);
+      const client = deps.createRedis(url);
+      const cache = new RedisCache(client, logger);
       try {
         await cache.connect();
       } catch (cause) {
@@ -45,7 +50,11 @@ async function createCache(
         );
       }
       logger.info({ host: describeRedisUrl(url) }, 'redis cache connected');
-      return { cache, closers: [{ name: 'redis', close: () => cache.close() }] };
+      return {
+        cache,
+        rateLimiter: new RedisRateLimiter(client),
+        closers: [{ name: 'redis', close: () => cache.close() }],
+      };
     }
   }
 }
@@ -84,8 +93,8 @@ export async function compose(
   logger: Logger,
   deps: ComposeDeps = realDeps,
 ): Promise<Composition> {
-  const { cache, closers } = await createCache(config, logger, deps);
+  const { cache, rateLimiter, closers } = await createStores(config, logger, deps);
   const source = createProductSource(config, logger, cache, deps);
   const catalogService = new CatalogService(source, logger, config.featuredProductIds);
-  return { services: { catalogService }, closers };
+  return { services: { catalogService, rateLimiter }, closers };
 }

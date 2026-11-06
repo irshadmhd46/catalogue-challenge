@@ -91,6 +91,59 @@ describe('compose: memory cache (the default)', () => {
   });
 });
 
+describe('compose: the rate limiter follows the cache driver', () => {
+  it('uses an in-process limiter with the memory driver and never touches Redis', async () => {
+    const t = setup();
+    const { services } = await t.run();
+
+    const first = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
+    const second = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
+    const third = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
+
+    expect([first.allowed, second.allowed, third.allowed]).toEqual([true, true, false]);
+    expect(t.redis.evals).toEqual([]);
+    expect(t.createRedis).not.toHaveBeenCalled();
+  });
+
+  it('the in-process limiter follows the real clock: a denied client is allowed again after the window', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      const { services } = await setup().run();
+      await services.rateLimiter.consume('k', 1, 60);
+      expect((await services.rateLimiter.consume('k', 1, 60)).allowed).toBe(false);
+
+      vi.setSystemTime(new Date('2026-01-01T00:01:01Z'));
+
+      expect((await services.rateLimiter.consume('k', 1, 60)).allowed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the shared Redis client with the redis driver: one client, cache and limiter both on it', async () => {
+    const t = setup({ CACHE_DRIVER: 'redis', REDIS_URL: 'redis://cache.test:6379' });
+    t.redis.evalReply = [1, 60_000];
+    const { services } = await t.run();
+
+    await services.catalogService.featured();
+    const result = await services.rateLimiter.consume('enquiry:1.2.3.4', 5, 60);
+
+    expect(t.createRedis).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ allowed: true, remaining: 4 });
+    expect(t.redis.evals.map((e) => e.args[0])).toEqual(['catalogue:v1:rl:enquiry:1.2.3.4']);
+    expect(t.redis.sets.map((s) => s.key)).toEqual(['catalogue:v1:products:all']);
+  });
+
+  it('registers a single redis closer for both', async () => {
+    const t = setup({ CACHE_DRIVER: 'redis', REDIS_URL: 'redis://cache.test:6379' });
+
+    const { closers } = await t.run();
+
+    expect(closers.map((c) => c.name)).toEqual(['redis']);
+  });
+});
+
 describe('compose: freshness and stale windows reach the caching decorator', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });

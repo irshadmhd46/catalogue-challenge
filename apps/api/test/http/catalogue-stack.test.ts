@@ -5,6 +5,7 @@ import { loadConfig } from '../../src/config/index.js';
 import { CachedProductSource } from '../../src/infrastructure/cache/cached-product-source.js';
 import { MemoryCache } from '../../src/infrastructure/cache/memory-cache.js';
 import { FakeStoreProductSource } from '../../src/infrastructure/catalog/fakestore-product-source.js';
+import { MemoryRateLimiter } from '../../src/infrastructure/rate-limit/memory-rate-limiter.js';
 import { FakeLogger } from '../support/fake-logger.js';
 import { upstreamProducts } from '../support/fixtures.js';
 
@@ -57,6 +58,7 @@ async function stack(upstream: Upstream, options: { timeoutsFire?: boolean } = {
     config: loadConfig({ NODE_ENV: 'test' }),
     logger,
     catalogService: new CatalogService(source, logger),
+    rateLimiter: new MemoryRateLimiter(() => clock.ms),
   });
 
   return {
