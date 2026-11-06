@@ -103,6 +103,8 @@ describe('bootstrap: startup', () => {
       catalogDriver: 'fakestore',
       cacheDriver: 'memory',
       upstreamHost: 'fakestoreapi.com',
+      notifierDriver: 'smtp',
+      smtpHost: 'localhost',
     });
     expect(t.exit).not.toHaveBeenCalled();
   });

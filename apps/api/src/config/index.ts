@@ -33,6 +33,16 @@ const redisUrl = z.string().refine((raw) => {
   return url !== undefined && (url.protocol === 'redis:' || url.protocol === 'rediss:');
 }, 'must be a redis: or rediss: URL');
 
+const SMTP_HOST_NAME = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
+
+const smtpHost = z
+  .string()
+  .regex(SMTP_HOST_NAME, 'must be a host name or address without a scheme, port or path');
+
+const plainEmail = z.email('must be a plain email address (no name, list or line break)');
+
+const secretText = z.string().min(1).max(256);
+
 const featuredIds = z.string().transform((raw, ctx) => {
   const parts = raw.split(',').map((part) => part.trim());
   const valid =
@@ -66,6 +76,18 @@ const envSchema = z
     CACHE_FRESH_TTL_SECONDS: boundedInt(60, 1, 86_400),
     CACHE_STALE_TTL_SECONDS: boundedInt(3600, 0, 604_800),
     FEATURED_PRODUCT_IDS: featuredIds.optional(),
+    NOTIFIER_DRIVER: z.enum(['smtp']).default('smtp'),
+    SMTP_HOST: smtpHost.optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+    SMTP_TLS: z.enum(['none', 'starttls', 'tls']).optional(),
+    SMTP_USER: secretText.optional(),
+    SMTP_PASSWORD: secretText.optional(),
+    SMTP_TIMEOUT_MS: boundedInt(8000, 1, 60_000),
+    MAIL_FROM: plainEmail.optional(),
+    SALES_INBOX: plainEmail.optional(),
+    RATE_LIMIT_ENQUIRY_PER_MINUTE: boundedInt(5, 1, 1000),
+    RATE_LIMIT_READ_PER_MINUTE: boundedInt(120, 1, 100_000),
+    TRUST_PROXY_HOPS: boundedInt(0, 0, 5),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && !env.FAKESTORE_BASE_URL.startsWith('https:')) {
@@ -80,6 +102,31 @@ const envSchema = z
         code: 'custom',
         path: ['REDIS_URL'],
         message: 'is required when CACHE_DRIVER is redis',
+      });
+    }
+    if (env.NODE_ENV === 'production') {
+      for (const name of ['SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM', 'SALES_INBOX'] as const) {
+        if (env[name] === undefined) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: 'is required in production',
+          });
+        }
+      }
+      if (env.SMTP_TLS === undefined || env.SMTP_TLS === 'none') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SMTP_TLS'],
+          message: 'must be starttls or tls in production',
+        });
+      }
+    }
+    if ((env.SMTP_USER === undefined) !== (env.SMTP_PASSWORD === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [env.SMTP_USER === undefined ? 'SMTP_USER' : 'SMTP_PASSWORD'],
+        message: 'is required when the other of SMTP_USER and SMTP_PASSWORD is set',
       });
     }
     if (env.UPSTREAM_DEADLINE_MS < env.UPSTREAM_TIMEOUT_MS) {
@@ -110,6 +157,19 @@ export interface AppConfig {
   readonly cacheFreshTtlSeconds: number;
   readonly cacheStaleTtlSeconds: number;
   readonly featuredProductIds: readonly number[];
+  readonly notifierDriver: 'smtp';
+  readonly smtpHost: string;
+  readonly smtpPort: number;
+  readonly smtpTls: 'none' | 'starttls' | 'tls';
+  readonly smtpUser: string | undefined;
+  /** A secret: never log it. */
+  readonly smtpPassword: string | undefined;
+  readonly smtpTimeoutMs: number;
+  readonly mailFrom: string;
+  readonly salesInbox: string;
+  readonly rateLimitEnquiryPerMinute: number;
+  readonly rateLimitReadPerMinute: number;
+  readonly trustProxyHops: number;
 }
 
 /** The only function in the codebase that reads `process.env`. */
@@ -149,6 +209,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cacheFreshTtlSeconds: values.CACHE_FRESH_TTL_SECONDS,
     cacheStaleTtlSeconds: values.CACHE_STALE_TTL_SECONDS,
     featuredProductIds: Object.freeze(values.FEATURED_PRODUCT_IDS ?? []),
+    notifierDriver: values.NOTIFIER_DRIVER,
+    smtpHost: values.SMTP_HOST ?? 'localhost',
+    smtpPort: values.SMTP_PORT ?? 1025,
+    smtpTls: values.SMTP_TLS ?? 'none',
+    smtpUser: values.SMTP_USER,
+    smtpPassword: values.SMTP_PASSWORD,
+    smtpTimeoutMs: values.SMTP_TIMEOUT_MS,
+    mailFrom: values.MAIL_FROM ?? 'no-reply@catalogue.local',
+    salesInbox: values.SALES_INBOX ?? 'sales@catalogue.local',
+    rateLimitEnquiryPerMinute: values.RATE_LIMIT_ENQUIRY_PER_MINUTE,
+    rateLimitReadPerMinute: values.RATE_LIMIT_READ_PER_MINUTE,
+    trustProxyHops: values.TRUST_PROXY_HOPS,
   });
 }
 
@@ -162,5 +234,7 @@ export function describeConfig(config: AppConfig): Readonly<Record<string, unkno
     catalogDriver: config.catalogDriver,
     cacheDriver: config.cacheDriver,
     upstreamHost: new URL(config.fakestoreBaseUrl).host,
+    notifierDriver: config.notifierDriver,
+    smtpHost: config.smtpHost,
   };
 }

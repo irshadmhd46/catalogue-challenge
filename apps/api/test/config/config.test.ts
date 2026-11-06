@@ -34,11 +34,23 @@ describe('loadConfig', () => {
       cacheFreshTtlSeconds: 60,
       cacheStaleTtlSeconds: 3600,
       featuredProductIds: [],
+      notifierDriver: 'smtp',
+      smtpHost: 'localhost',
+      smtpPort: 1025,
+      smtpTls: 'none',
+      smtpUser: undefined,
+      smtpPassword: undefined,
+      smtpTimeoutMs: 8000,
+      mailFrom: 'no-reply@catalogue.local',
+      salesInbox: 'sales@catalogue.local',
+      rateLimitEnquiryPerMinute: 5,
+      rateLimitReadPerMinute: 120,
+      trustProxyHops: 0,
     });
   });
 
   it('lets explicit values override defaults and converts numbers', () => {
-    const config = loadConfig({ PORT: '8080', LOG_LEVEL: 'debug', NODE_ENV: 'production' });
+    const config = loadConfig({ ...PRODUCTION_MAIL, PORT: '8080', LOG_LEVEL: 'debug' });
 
     expect(config.port).toBe(8080);
     expect(config.logLevel).toBe('debug');
@@ -150,6 +162,8 @@ describe('describeConfig', () => {
       catalogDriver: 'fakestore',
       cacheDriver: 'memory',
       upstreamHost: 'fakestoreapi.com',
+      notifierDriver: 'smtp',
+      smtpHost: 'localhost',
     });
   });
 
@@ -223,14 +237,14 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
   it('requires https for the upstream in production only', () => {
     const url = 'http://upstream.test';
 
-    expect(fieldsOf({ NODE_ENV: 'production', FAKESTORE_BASE_URL: url })).toEqual([
+    expect(fieldsOf({ ...PRODUCTION_MAIL, FAKESTORE_BASE_URL: url })).toEqual([
       'FAKESTORE_BASE_URL',
     ]);
     expect(loadConfig({ NODE_ENV: 'development', FAKESTORE_BASE_URL: url }).fakestoreBaseUrl).toBe(
       url,
     );
     expect(
-      loadConfig({ NODE_ENV: 'production', FAKESTORE_BASE_URL: 'https://upstream.test' })
+      loadConfig({ ...PRODUCTION_MAIL, FAKESTORE_BASE_URL: 'https://upstream.test' })
         .fakestoreBaseUrl,
     ).toBe('https://upstream.test');
   });
@@ -344,5 +358,214 @@ describe('describeConfig: catalogue fields', () => {
     const serialised = JSON.stringify(summary);
     expect(serialised).not.toContain('topsecret');
     expect(serialised).not.toContain('cache.test');
+  });
+});
+
+const PRODUCTION_MAIL = {
+  NODE_ENV: 'production',
+  FAKESTORE_BASE_URL: 'https://upstream.test',
+  SMTP_HOST: 'smtp.example.test',
+  SMTP_PORT: '587',
+  SMTP_TLS: 'starttls',
+  MAIL_FROM: 'no-reply@shop.example.test',
+  SALES_INBOX: 'sales@shop.example.test',
+};
+
+describe('loadConfig: mail, rate limit and proxy settings', () => {
+  it('reads explicit values for every new setting', () => {
+    const config = loadConfig({
+      NOTIFIER_DRIVER: 'smtp',
+      SMTP_HOST: 'smtp.example.test',
+      SMTP_PORT: '2525',
+      SMTP_TLS: 'tls',
+      SMTP_USER: 'mailer',
+      SMTP_PASSWORD: 'p4ssw0rd',
+      SMTP_TIMEOUT_MS: '3000',
+      MAIL_FROM: 'no-reply@shop.example.test',
+      SALES_INBOX: 'sales@shop.example.test',
+      RATE_LIMIT_ENQUIRY_PER_MINUTE: '3',
+      RATE_LIMIT_READ_PER_MINUTE: '60',
+      TRUST_PROXY_HOPS: '1',
+    });
+
+    expect(config).toMatchObject({
+      smtpHost: 'smtp.example.test',
+      smtpPort: 2525,
+      smtpTls: 'tls',
+      smtpUser: 'mailer',
+      smtpPassword: 'p4ssw0rd',
+      smtpTimeoutMs: 3000,
+      mailFrom: 'no-reply@shop.example.test',
+      salesInbox: 'sales@shop.example.test',
+      rateLimitEnquiryPerMinute: 3,
+      rateLimitReadPerMinute: 60,
+      trustProxyHops: 1,
+    });
+  });
+
+  it('accepts a complete production configuration', () => {
+    expect(() => loadConfig(PRODUCTION_MAIL)).not.toThrow();
+  });
+
+  it.each(['SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM', 'SALES_INBOX'])(
+    'production without %s -> ConfigError naming it',
+    (name) => {
+      const env: Record<string, string> = { ...PRODUCTION_MAIL };
+      delete env[name];
+
+      expect(fieldsOf(env)).toEqual([name]);
+    },
+  );
+
+  it('production with several mail settings missing names each of them', () => {
+    const env: Record<string, string> = { ...PRODUCTION_MAIL };
+    delete env.SMTP_HOST;
+    delete env.SALES_INBOX;
+
+    expect(fieldsOf(env)?.sort()).toEqual(['SALES_INBOX', 'SMTP_HOST']);
+  });
+
+  it.each([undefined, 'none'])(
+    'production with SMTP_TLS %s -> ConfigError naming SMTP_TLS',
+    (tls) => {
+      const env: Record<string, string> = { ...PRODUCTION_MAIL };
+      if (tls === undefined) delete env.SMTP_TLS;
+      else env.SMTP_TLS = tls;
+
+      expect(fieldsOf(env)).toEqual(['SMTP_TLS']);
+    },
+  );
+
+  it.each(['starttls', 'tls'])('production accepts SMTP_TLS %s', (tls) => {
+    expect(loadConfig({ ...PRODUCTION_MAIL, SMTP_TLS: tls }).smtpTls).toBe(tls);
+  });
+
+  it('outside production a missing mail setting is fine and uses the local defaults', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development' })).not.toThrow();
+    expect(() => loadConfig({ NODE_ENV: 'test' })).not.toThrow();
+  });
+
+  it.each([
+    ['only a user', { SMTP_USER: 'mailer' }, 'SMTP_PASSWORD'],
+    ['only a password', { SMTP_PASSWORD: 'p4ssw0rd' }, 'SMTP_USER'],
+  ])('%s -> ConfigError naming %s', (_label, env, missing) => {
+    expect(fieldsOf(env)).toEqual([missing]);
+  });
+
+  it('accepts a user and password together', () => {
+    const config = loadConfig({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'p4ssw0rd' });
+
+    expect([config.smtpUser, config.smtpPassword]).toEqual(['mailer', 'p4ssw0rd']);
+  });
+
+  it.each([
+    'Name <a@b.co>',
+    'a@b.co, c@d.co',
+    'not an email',
+    'a@b.co\r\nBcc: x@y.z',
+    '"quoted" <a@b.co>',
+    'a@b',
+  ])('MAIL_FROM and SALES_INBOX reject %j', (address) => {
+    expect(fieldsOf({ MAIL_FROM: address })).toEqual(['MAIL_FROM']);
+    expect(fieldsOf({ SALES_INBOX: address })).toEqual(['SALES_INBOX']);
+  });
+
+  it.each([
+    'smtp://host',
+    'host:25',
+    'host/path',
+    'ho st',
+    '-bad.example.test',
+    'host\r\nX: y',
+    'a'.repeat(300),
+  ])('SMTP_HOST rejects %j', (host) => {
+    expect(fieldsOf({ SMTP_HOST: host })).toEqual(['SMTP_HOST']);
+  });
+
+  it.each(['localhost', 'smtp.example.test', '10.0.0.5', 'mail-1.internal'])(
+    'SMTP_HOST accepts %j',
+    (host) => {
+      expect(loadConfig({ SMTP_HOST: host }).smtpHost).toBe(host);
+    },
+  );
+
+  it('rejects an unknown notifier driver and TLS mode', () => {
+    expect(fieldsOf({ NOTIFIER_DRIVER: 'sendgrid' })).toEqual(['NOTIFIER_DRIVER']);
+    expect(fieldsOf({ SMTP_TLS: 'ssl' })).toEqual(['SMTP_TLS']);
+  });
+
+  it.each([
+    ['SMTP_PORT', '65535', '65536'],
+    ['SMTP_TIMEOUT_MS', '60000', '60001'],
+    ['RATE_LIMIT_ENQUIRY_PER_MINUTE', '1000', '1001'],
+    ['RATE_LIMIT_READ_PER_MINUTE', '100000', '100001'],
+    ['TRUST_PROXY_HOPS', '5', '6'],
+  ])('%s accepts its maximum %s and rejects %s', (name, atMax, overMax) => {
+    expect(() => loadConfig({ [name]: atMax })).not.toThrow();
+    expect(fieldsOf({ [name]: overMax })).toEqual([name]);
+  });
+
+  it.each([
+    ['SMTP_PORT', '0'],
+    ['SMTP_TIMEOUT_MS', '0'],
+    ['RATE_LIMIT_ENQUIRY_PER_MINUTE', '0'],
+    ['RATE_LIMIT_READ_PER_MINUTE', '0'],
+    ['TRUST_PROXY_HOPS', '-1'],
+    ['TRUST_PROXY_HOPS', '1.5'],
+    ['SMTP_PORT', 'abc'],
+  ])('%s rejects %s', (name, value) => {
+    expect(fieldsOf({ [name]: value })).toEqual([name]);
+  });
+
+  it('allows zero trusted proxy hops', () => {
+    expect(loadConfig({ TRUST_PROXY_HOPS: '0' }).trustProxyHops).toBe(0);
+  });
+
+  it('never echoes the password, the user or an offending address', () => {
+    const error = configError({
+      SMTP_PASSWORD: 'hunter2-pass',
+      SALES_INBOX: 'leaky@@example.test',
+      MAIL_FROM: 'Leaky Name <leaky@example.test>',
+      SMTP_HOST: 'smtp://leaky-host',
+    });
+
+    const serialised = JSON.stringify({ message: error.message, details: error.details });
+    for (const secret of ['hunter2-pass', 'leaky', 'smtp://']) {
+      expect(serialised).not.toContain(secret);
+    }
+  });
+
+  it('does not echo the password even when the pair rule fails', () => {
+    const error = configError({ SMTP_PASSWORD: 'hunter2-pass' });
+
+    expect(JSON.stringify({ message: error.message, details: error.details })).not.toContain(
+      'hunter2-pass',
+    );
+  });
+});
+
+describe('describeConfig: mail fields', () => {
+  it('shows the notifier driver and SMTP host and nothing secret or personal', () => {
+    const config = loadConfig({
+      SMTP_HOST: 'smtp.example.test',
+      SMTP_USER: 'mailer-user',
+      SMTP_PASSWORD: 'p4ssw0rd-secret',
+      MAIL_FROM: 'no-reply@shop.example.test',
+      SALES_INBOX: 'sales@shop.example.test',
+    });
+
+    const summary = describeConfig(config);
+
+    expect(summary).toMatchObject({ notifierDriver: 'smtp', smtpHost: 'smtp.example.test' });
+    const serialised = JSON.stringify(summary);
+    for (const hidden of [
+      'mailer-user',
+      'p4ssw0rd-secret',
+      'no-reply@',
+      'sales@',
+      'shop.example.test/',
+    ]) {
+      expect(serialised).not.toContain(hidden);
+    }
   });
 });

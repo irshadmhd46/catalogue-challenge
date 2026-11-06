@@ -8,7 +8,7 @@ Configuration SHALL include these settings with the defaults shown.
 | ------------------------------ | ---------------------------- | ------------------------------------------------- |
 | `NOTIFIER_DRIVER`              | `smtp`                       | one of `smtp`                                     |
 | `SMTP_HOST`                    | `localhost`                  | non-empty host name; explicit in production       |
-| `SMTP_PORT`                    | 1025                         | integer 1 to 65535                                |
+| `SMTP_PORT`                    | 1025                         | integer 1 to 65535; explicit in production        |
 | `SMTP_TLS`                     | `none`                       | `none`, `starttls` or `tls`; not `none` in production |
 | `SMTP_USER`, `SMTP_PASSWORD`   | unset                        | both set or both unset                            |
 | `SMTP_TIMEOUT_MS`              | 8000                         | integer 1 to 60000                                |
@@ -31,7 +31,7 @@ Configuration SHALL include these settings with the defaults shown.
 
 #### Scenario: Production requires explicit mail settings
 
-- **WHEN** `NODE_ENV=production` and any of `SMTP_HOST`, `MAIL_FROM` or `SALES_INBOX` is missing
+- **WHEN** `NODE_ENV=production` and any of `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` or `SALES_INBOX` is missing
 - **THEN** a `ConfigError` names each missing variable
 
 #### Scenario: Production requires TLS

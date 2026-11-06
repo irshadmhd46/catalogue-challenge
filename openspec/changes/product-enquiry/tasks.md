@@ -30,10 +30,10 @@
 
 ## 5. Configuration
 
-- [ ] 5.1 Extend `src/config/index.ts` with the mail, rate limit and proxy settings, the production rules (explicit mail settings, TLS not `none`), the credential pair rule, the plain-address rule for `MAIL_FROM` and `SALES_INBOX`, and the allowlisted summary additions (`notifierDriver`, `smtpHost`)
-- [ ] 5.2 Test configuration: defaults, explicit values, each production rule (missing each of the three, `SMTP_TLS` none or unset), credential pair (user only, password only), every rejected address form, every bound, and that neither the password nor an offending address is echoed
-- [ ] 5.3 Test the summary: new fields present; user, password, sender and sales inbox absent from the serialised form
-- [ ] 5.4 Update `.env.example` with placeholders for every new variable (no credentials) and update the bootstrap summary test
+- [x] 5.1 Extend `src/config/index.ts` with the mail, rate limit and proxy settings, the production rules (explicit mail settings, TLS not `none`), the credential pair rule, the plain-address rule for `MAIL_FROM` and `SALES_INBOX`, and the allowlisted summary additions (`notifierDriver`, `smtpHost`)
+- [x] 5.2 Test configuration: defaults, explicit values, each production rule (missing each of the three, `SMTP_TLS` none or unset), credential pair (user only, password only), every rejected address form, every bound, and that neither the password nor an offending address is echoed
+- [x] 5.3 Test the summary: new fields present; user, password, sender and sales inbox absent from the serialised form
+- [x] 5.4 Update `.env.example` with placeholders for every new variable (no credentials) and update the bootstrap summary test
 
 ## 6. SMTP notifier
 
