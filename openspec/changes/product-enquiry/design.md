@@ -44,7 +44,7 @@ now and the web form later, so client and server cannot disagree.
 | `message` | trimmed, 10 to 2000 characters; newlines and tabs allowed, every other control character rejected |
 
 Unknown properties are rejected. Messages never echo the submitted value. Checked against zod 4:
-`a@b.co, c@d.co`, `"x" <a@b.co>`, `a@b.co\r\nBcc: x@y.z` and a trailing newline are all rejected.
+`a@b.co, c@d.co`, `"x" <a@b.co>` and `a@b.co\r\nBcc: x@y.z` are rejected; surrounding whitespace is trimmed first, so a pasted trailing newline is harmless while a line break inside the address is not.
 Internationalised addresses (`ünï@example.com`) are also rejected: a known limitation, accepted.
 
 - Alternative: write the rules in the API only. Rejected: the web form would duplicate them and drift.

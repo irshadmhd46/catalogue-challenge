@@ -30,8 +30,14 @@ validation messages SHALL NOT contain the submitted values.
 #### Scenario: Email forms that are not plain addresses
 
 - **WHEN** `email` is `a@b`, `a@b.co, c@d.co`, `"x" <a@b.co>`, `<a@b.co>`, `a b@c.co`,
-  `a@b.co\r\nBcc: x@y.z`, `a@b.co\n` or `@b.co`
+  `a@b.co\r\nBcc: x@y.z`, `a@b.co\r\n x@y.z` or `@b.co`
 - **THEN** every one is rejected
+
+#### Scenario: Surrounding whitespace is trimmed, inner line breaks are not allowed
+
+- **WHEN** `email` is `  ann@example.test\n`
+- **THEN** it parses as `ann@example.test`
+- **AND** an address with a line break inside it is rejected
 
 #### Scenario: Control characters
 

@@ -7,7 +7,7 @@ export const MAX_SLUG_LENGTH = 64;
 export const PRODUCT_ID_PATTERN = /^[1-9][0-9]{0,8}$/;
 const CATEGORY_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-const NO_CONTROL_CHARACTERS = /^[^\u0000-\u001f\u007f]+$/;
+export const NO_CONTROL_CHARACTERS = /^[^\u0000-\u001f\u007f]+$/;
 
 export const productIdParamsSchema = z
   .object({

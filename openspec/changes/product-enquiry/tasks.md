@@ -7,11 +7,11 @@
 
 ## 2. Contracts: enquiry schemas
 
-- [ ] 2.1 Implement `packages/contracts/src/enquiry.ts`: `enquiryRequestSchema` (strict; product id pattern reused from `requests.ts`, name, email, optional phone, message with the control-character rule that still allows newlines and tabs), `enquiryResponseSchema`, inferred types; add `enquiryPaths` to `paths.ts`; export from `index.ts`
-- [ ] 2.2 Test valid parsing: trimming, optional phone, a multi-line message, every field boundary (100/254/2000/10, 5/30) accepted and one past it rejected
-- [ ] 2.3 Test every rejected email form (`a@b`, list, display name, angle brackets, space, CRLF injection, trailing newline, leading `@`), control characters in name and message (NUL, escape, newline in name), empty-string phone, wrong types (`"7"`, 1.5, 0, 10 digits), missing fields, and extra properties (`to`, `cc`, `bcc`)
-- [ ] 2.4 Test that no issue message contains the submitted value (email `hunter2@`, a long message, a bad phone)
-- [ ] 2.5 Test the response schema and the paths constant
+- [x] 2.1 Implement `packages/contracts/src/enquiry.ts`: `enquiryRequestSchema` (strict; product id pattern reused from `requests.ts`, name, email, optional phone, message with the control-character rule that still allows newlines and tabs), `enquiryResponseSchema`, inferred types; add `enquiryPaths` to `paths.ts`; export from `index.ts`
+- [x] 2.2 Test valid parsing: trimming, optional phone, a multi-line message, every field boundary (100/254/2000/10, 5/30) accepted and one past it rejected
+- [x] 2.3 Test every rejected email form (`a@b`, list, display name, angle brackets, space, CRLF injection, trailing newline, leading `@`), control characters in name and message (NUL, escape, newline in name), empty-string phone, wrong types (`"7"`, 1.5, 0, 10 digits), missing fields, and extra properties (`to`, `cc`, `bcc`)
+- [x] 2.4 Test that no issue message contains the submitted value (email `hunter2@`, a long message, a bad phone)
+- [x] 2.5 Test the response schema and the paths constant
 
 ## 3. Domain: ports and the typed failure
 
