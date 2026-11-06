@@ -141,4 +141,21 @@ describe('AppError subclasses', () => {
     expect(error.publicMessage).toBe('Something went wrong');
     expect(error.message).not.toContain('redis.internal');
   });
+
+  it('carries the enquiry id on a NotificationError for logging, not in any public text', () => {
+    const cause = new Error('smtp down');
+
+    const error = new NotificationError({ cause, enquiryId: 'enq-123' });
+
+    expect(error.enquiryId).toBe('enq-123');
+    expect(error.cause).toBe(cause);
+    expect(error.publicMessage).toBe('Could not send the message');
+    expect(error.message).not.toContain('enq-123');
+    expect(error.details).toBeUndefined();
+  });
+
+  it('has no enquiry id unless one is given', () => {
+    expect(new NotificationError().enquiryId).toBeUndefined();
+    expect(Object.keys(new NotificationError())).not.toContain('enquiryId');
+  });
 });

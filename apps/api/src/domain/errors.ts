@@ -110,9 +110,14 @@ export class UpstreamTimeoutError extends AppError {
 export class NotificationError extends AppError {
   readonly code = ERROR_CODES.NOTIFICATION_FAILED;
   readonly httpStatus = 502;
+  /** For the log line only: lets support match a visitor's retry to the failed attempt. */
+  declare readonly enquiryId?: string;
 
-  constructor(options: AppErrorOptions = {}) {
+  constructor(options: AppErrorOptions & { readonly enquiryId?: string } = {}) {
     super(PUBLIC_MESSAGES.NOTIFICATION_FAILED, options);
+    if (options.enquiryId !== undefined) {
+      this.enquiryId = options.enquiryId;
+    }
   }
 }
 

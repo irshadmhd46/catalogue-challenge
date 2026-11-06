@@ -15,18 +15,18 @@
 
 ## 3. Domain: ports and the typed failure
 
-- [ ] 3.1 Add `src/domain/enquiry.ts` (`Enquiry`: id, receivedAt, product `{ id, title }`, name, email, optional phone, message; all readonly) and `src/domain/enquiry-notifier.ts` (the `EnquiryNotifier` port with its failure contract)
-- [ ] 3.2 Add `src/domain/rate-limiter.ts`: the `RateLimiter` port and the `RateLimitResult` type
-- [ ] 3.3 Give `NotificationError` an optional log-only `enquiryId`; test that it is a property, not part of `publicMessage`, `message` or `details`, and that `cause` is kept (extend `errors.test.ts`)
+- [x] 3.1 Add `src/domain/enquiry.ts` (`Enquiry`: id, receivedAt, product `{ id, title }`, name, email, optional phone, message; all readonly) and `src/domain/enquiry-notifier.ts` (the `EnquiryNotifier` port with its failure contract)
+- [x] 3.2 Add `src/domain/rate-limiter.ts`: the `RateLimiter` port and the `RateLimitResult` type
+- [x] 3.3 Give `NotificationError` an optional log-only `enquiryId`; test that it is a property, not part of `publicMessage`, `message` or `details`, and that `cause` is kept (extend `errors.test.ts`)
 
 ## 4. EnquiryService (service layer: tests first)
 
-- [ ] 4.1 Add test support: `FakeEnquiryNotifier` (records calls, can reject), a fixed id generator and clock, and reuse `FakeProductSource` and `FakeLogger`
-- [ ] 4.2 Write `test/application/enquiry-service.test.ts` (RED): product looked up once with the request's id, notifier receives the catalogue's title and id (not any request value), the visitor's fields unchanged, generated id and clock time, result is the id, two enquiries get different ids
-- [ ] 4.3 RED for failures: `NotFoundError` and `UpstreamError` from the catalogue are rethrown unchanged and the notifier is not called; a notifier failure becomes a `NotificationError` with `cause` and `enquiryId`; a `NotificationError` from the notifier keeps the chain and gains the id; the notifier is called exactly once (no retry); the public message and details hold no visitor data or id
-- [ ] 4.4 RED for logging: success writes exactly one `info` line with `enquiryId`, `productId`, `outcome: 'sent'` and no visitor field; failure writes no line
-- [ ] 4.5 Implement `src/application/enquiry-service.ts` (GREEN) with constructor injection of the catalogue service, notifier, logger, id generator and clock
-- [ ] 4.6 REFACTOR, then run the mutation check on every test (delete the production line; does a test fail?) and confirm every stub is used
+- [x] 4.1 Add test support: `FakeEnquiryNotifier` (records calls, can reject), a fixed id generator and clock, and reuse `FakeProductSource` and `FakeLogger`
+- [x] 4.2 Write `test/application/enquiry-service.test.ts` (RED): product looked up once with the request's id, notifier receives the catalogue's title and id (not any request value), the visitor's fields unchanged, generated id and clock time, result is the id, two enquiries get different ids
+- [x] 4.3 RED for failures: `NotFoundError` and `UpstreamError` from the catalogue are rethrown unchanged and the notifier is not called; a notifier failure becomes a `NotificationError` with `cause` and `enquiryId`; a `NotificationError` from the notifier keeps the chain and gains the id; the notifier is called exactly once (no retry); the public message and details hold no visitor data or id
+- [x] 4.4 RED for logging: success writes exactly one `info` line with `enquiryId`, `productId`, `outcome: 'sent'` and no visitor field; failure writes no line
+- [x] 4.5 Implement `src/application/enquiry-service.ts` (GREEN) with constructor injection of the catalogue service, notifier, logger, id generator and clock
+- [x] 4.6 REFACTOR, then run the mutation check on every test (delete the production line; does a test fail?) and confirm every stub is used
 
 ## 5. Configuration
 
