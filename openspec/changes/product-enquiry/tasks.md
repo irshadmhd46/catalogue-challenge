@@ -41,10 +41,10 @@
 - [x] 6.2 Test the builder as tables: fixed from and to, `replyTo` with sanitised name, no cc/bcc/html/attachments, subject format, injection in name and in product title (CR, LF, U+2028, U+2029, NUL), 500-character title, body content with and without phone, multi-line message unchanged, HTML in the message verbatim, `X-Enquiry-Id` header, visitor address only in `replyTo` and body
 - [ ] 6.3 Implement `src/infrastructure/mail/smtp-enquiry-notifier.ts`: `MailTransport` interface, `SmtpEnquiryNotifier` (one `sendMail` per enquiry, total deadline race, errors rebuilt from `code`/`command`/`responseCode`, `close()`), and `createSmtpTransport(config)` with the timeouts, TLS mode and optional auth
 - [ ] 6.4 Test through nodemailer's `jsonTransport`: the serialised message has the right headers and body, no Bcc after a hostile name, and one transport call per send
-- [ ] 6.5 Test failure mapping with stub transports: `EAUTH` with a response containing the visitor's address (neither error, cause nor serialised form contains it), `ECONNREFUSED`, a non-Error rejection, the message text of the cause, `cause` never holding the raw response
-- [ ] 6.6 Test the deadline with fake timers: a slow transport rejects with `NotificationError` at the deadline, a late success changes nothing and is not an unhandled rejection, and the transport was called once
+- [x] 6.5 Test failure mapping with stub transports: `EAUTH` with a response containing the visitor's address (neither error, cause nor serialised form contains it), `ECONNREFUSED`, a non-Error rejection, the message text of the cause, `cause` never holding the raw response
+- [x] 6.6 Test the deadline with fake timers: a slow transport rejects with `NotificationError` at the deadline, a late success changes nothing and is not an unhandled rejection, and the transport was called once
 - [ ] 6.7 Test `createSmtpTransport` options: timeouts equal `SMTP_TIMEOUT_MS`, pooling off, `starttls` sets `requireTLS`, `tls` sets `secure`, `none` sets `ignoreTLS`, credentials passed only as a pair, the password never appears in a thrown error or the transport's logged options
-- [ ] 6.8 Test `close()` calls the transport's close once
+- [x] 6.8 Test `close()` calls the transport's close once
 
 ## 7. Rate limiting adapters
 
