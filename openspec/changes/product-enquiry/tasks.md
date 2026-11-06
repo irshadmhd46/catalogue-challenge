@@ -37,8 +37,8 @@
 
 ## 6. SMTP notifier
 
-- [ ] 6.1 Implement `src/infrastructure/mail/enquiry-email.ts`: `buildEnquiryEmail(enquiry, { from, to })` as a pure function with `sanitiseHeader` (control characters including C1 and U+2028/2029 removed, whitespace collapsed, subject truncated to 150 with an ellipsis)
-- [ ] 6.2 Test the builder as tables: fixed from and to, `replyTo` with sanitised name, no cc/bcc/html/attachments, subject format, injection in name and in product title (CR, LF, U+2028, U+2029, NUL), 500-character title, body content with and without phone, multi-line message unchanged, HTML in the message verbatim, `X-Enquiry-Id` header, visitor address only in `replyTo` and body
+- [x] 6.1 Implement `src/infrastructure/mail/enquiry-email.ts`: `buildEnquiryEmail(enquiry, { from, to })` as a pure function with `sanitiseHeader` (control characters including C1 and U+2028/2029 removed, whitespace collapsed, subject truncated to 150 with an ellipsis)
+- [x] 6.2 Test the builder as tables: fixed from and to, `replyTo` with sanitised name, no cc/bcc/html/attachments, subject format, injection in name and in product title (CR, LF, U+2028, U+2029, NUL), 500-character title, body content with and without phone, multi-line message unchanged, HTML in the message verbatim, `X-Enquiry-Id` header, visitor address only in `replyTo` and body
 - [ ] 6.3 Implement `src/infrastructure/mail/smtp-enquiry-notifier.ts`: `MailTransport` interface, `SmtpEnquiryNotifier` (one `sendMail` per enquiry, total deadline race, errors rebuilt from `code`/`command`/`responseCode`, `close()`), and `createSmtpTransport(config)` with the timeouts, TLS mode and optional auth
 - [ ] 6.4 Test through nodemailer's `jsonTransport`: the serialised message has the right headers and body, no Bcc after a hostile name, and one transport call per send
 - [ ] 6.5 Test failure mapping with stub transports: `EAUTH` with a response containing the visitor's address (neither error, cause nor serialised form contains it), `ECONNREFUSED`, a non-Error rejection, the message text of the cause, `cause` never holding the raw response
