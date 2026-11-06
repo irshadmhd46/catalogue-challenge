@@ -27,10 +27,7 @@ describe('loadConfig', () => {
       catalogDriver: 'fakestore',
       fakestoreBaseUrl: 'https://fakestoreapi.com',
       upstreamTimeoutMs: 4000,
-      upstreamDeadlineMs: 10_000,
-      upstreamMaxRetries: 2,
-      cacheDriver: 'memory',
-      redisUrl: undefined,
+      upstreamMaxRetries: 1,
       cacheFreshTtlSeconds: 60,
       cacheStaleTtlSeconds: 3600,
       featuredProductIds: [],
@@ -128,7 +125,9 @@ describe('loadConfig failures', () => {
   });
 
   it('reports each variable once even when a value breaks several rules', () => {
-    expect(fieldsOf({ UPSTREAM_DEADLINE_MS: '0' })).toEqual(['UPSTREAM_DEADLINE_MS']);
+    expect(fieldsOf({ ...PRODUCTION_MAIL, FAKESTORE_BASE_URL: 'ftp://upstream.test' })).toEqual([
+      'FAKESTORE_BASE_URL',
+    ]);
   });
 
   it('reports several problems in one ConfigError', () => {
@@ -160,7 +159,6 @@ describe('describeConfig', () => {
       port: 8080,
       logLevel: 'info',
       catalogDriver: 'fakestore',
-      cacheDriver: 'memory',
       upstreamHost: 'fakestoreapi.com',
       notifierDriver: 'smtp',
       smtpHost: 'localhost',
@@ -177,7 +175,6 @@ describe('describeConfig', () => {
   });
 });
 
-const REDIS = 'redis://cache.test:6379';
 const fieldsOf = (env: Record<string, string>) => configError(env).details?.map((i) => i.field);
 
 describe('loadConfig: catalogue, upstream and cache settings', () => {
@@ -186,10 +183,7 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
       CATALOG_DRIVER: 'fakestore',
       FAKESTORE_BASE_URL: 'https://upstream.test/api',
       UPSTREAM_TIMEOUT_MS: '2500',
-      UPSTREAM_DEADLINE_MS: '8000',
       UPSTREAM_MAX_RETRIES: '0',
-      CACHE_DRIVER: 'redis',
-      REDIS_URL: REDIS,
       CACHE_FRESH_TTL_SECONDS: '30',
       CACHE_STALE_TTL_SECONDS: '0',
     });
@@ -197,41 +191,10 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
     expect(config).toMatchObject({
       fakestoreBaseUrl: 'https://upstream.test/api',
       upstreamTimeoutMs: 2500,
-      upstreamDeadlineMs: 8000,
       upstreamMaxRetries: 0,
-      cacheDriver: 'redis',
-      redisUrl: REDIS,
       cacheFreshTtlSeconds: 30,
       cacheStaleTtlSeconds: 0,
     });
-  });
-
-  it('requires REDIS_URL when the cache driver is redis', () => {
-    expect(fieldsOf({ CACHE_DRIVER: 'redis' })).toEqual(['REDIS_URL']);
-  });
-
-  it.each(['http://cache.test', 'cache.test:6379', 'not a url'])(
-    'rejects REDIS_URL %j even with the memory driver',
-    (url) => {
-      expect(fieldsOf({ REDIS_URL: url })).toEqual(['REDIS_URL']);
-    },
-  );
-
-  it('accepts rediss: URLs', () => {
-    expect(loadConfig({ CACHE_DRIVER: 'redis', REDIS_URL: 'rediss://cache.test' }).redisUrl).toBe(
-      'rediss://cache.test',
-    );
-  });
-
-  it('ignores a valid REDIS_URL when the driver is memory', () => {
-    const config = loadConfig({ CACHE_DRIVER: 'memory', REDIS_URL: REDIS });
-
-    expect(config.cacheDriver).toBe('memory');
-  });
-
-  it('rejects an unknown cache or catalog driver', () => {
-    expect(fieldsOf({ CACHE_DRIVER: 'memcached' })).toEqual(['CACHE_DRIVER']);
-    expect(fieldsOf({ CATALOG_DRIVER: 'shopify' })).toEqual(['CATALOG_DRIVER']);
   });
 
   it('requires https for the upstream in production only', () => {
@@ -290,9 +253,8 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
   });
 
   it.each([
-    ['UPSTREAM_MAX_RETRIES', '5', '6', {}],
-    ['UPSTREAM_TIMEOUT_MS', '30000', '30001', { UPSTREAM_DEADLINE_MS: '60000' }],
-    ['UPSTREAM_DEADLINE_MS', '60000', '60001', {}],
+    ['UPSTREAM_MAX_RETRIES', '3', '4', {}],
+    ['UPSTREAM_TIMEOUT_MS', '30000', '30001', {}],
     ['CACHE_FRESH_TTL_SECONDS', '86400', '86401', {}],
     ['CACHE_STALE_TTL_SECONDS', '604800', '604801', {}],
   ])('%s accepts its maximum %s and rejects %s', (name, atMax, overMax, companions) => {
@@ -302,7 +264,6 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
 
   it.each([
     ['UPSTREAM_TIMEOUT_MS', '0'],
-    ['UPSTREAM_DEADLINE_MS', '0'],
     ['UPSTREAM_MAX_RETRIES', '-1'],
     ['CACHE_FRESH_TTL_SECONDS', '0'],
     ['CACHE_STALE_TTL_SECONDS', '-1'],
@@ -318,46 +279,27 @@ describe('loadConfig: catalogue, upstream and cache settings', () => {
     expect(config.cacheStaleTtlSeconds).toBe(0);
   });
 
-  it('rejects a deadline shorter than one attempt', () => {
-    expect(fieldsOf({ UPSTREAM_TIMEOUT_MS: '5000', UPSTREAM_DEADLINE_MS: '1000' })).toEqual([
-      'UPSTREAM_DEADLINE_MS',
-    ]);
-  });
-
-  it('accepts a deadline equal to the attempt timeout', () => {
-    expect(() =>
-      loadConfig({ UPSTREAM_TIMEOUT_MS: '5000', UPSTREAM_DEADLINE_MS: '5000' }),
-    ).not.toThrow();
-  });
-
   it('never echoes credentials or values from the new settings', () => {
     const error = configError({
-      REDIS_URL: 'http://user:topsecret@cache.test',
       FAKESTORE_BASE_URL: 'https://user:basicpw@upstream.test',
       FEATURED_PRODUCT_IDS: 'leakyvalue',
     });
 
     const serialised = JSON.stringify({ message: error.message, details: error.details });
-    for (const secret of ['topsecret', 'basicpw', 'leakyvalue']) {
+    for (const secret of ['basicpw', 'leakyvalue']) {
       expect(serialised).not.toContain(secret);
     }
   });
 });
 
 describe('describeConfig: catalogue fields', () => {
-  it('shows the cache driver and upstream host but never the Redis URL', () => {
-    const config = loadConfig({
-      CACHE_DRIVER: 'redis',
-      REDIS_URL: 'redis://user:topsecret@cache.test:6379',
-      FAKESTORE_BASE_URL: 'https://upstream.test/api',
-    });
+  it('shows the upstream host only, never the full base URL', () => {
+    const config = loadConfig({ FAKESTORE_BASE_URL: 'https://upstream.test/secret-path' });
 
     const summary = describeConfig(config);
 
-    expect(summary).toMatchObject({ cacheDriver: 'redis', upstreamHost: 'upstream.test' });
-    const serialised = JSON.stringify(summary);
-    expect(serialised).not.toContain('topsecret');
-    expect(serialised).not.toContain('cache.test');
+    expect(summary).toMatchObject({ catalogDriver: 'fakestore', upstreamHost: 'upstream.test' });
+    expect(JSON.stringify(summary)).not.toContain('secret-path');
   });
 });
 

@@ -28,8 +28,6 @@ interface Options {
   steps: (Step | Response)[];
   maxRetries?: number;
   timeoutMs?: number;
-  deadlineMs?: number;
-  random?: number;
   baseUrl?: string;
   /** When true, every per-attempt signal is already aborted and the clock jumps by its timeout. */
   timeoutsFire?: boolean;
@@ -63,7 +61,6 @@ function setup(options: Options) {
   const source = new FakeStoreProductSource({
     baseUrl: options.baseUrl ?? 'https://upstream.test',
     timeoutMs: options.timeoutMs ?? 4000,
-    deadlineMs: options.deadlineMs ?? 10_000,
     maxRetries: options.maxRetries ?? 2,
     logger,
     fetch: fakeFetch,
@@ -72,7 +69,6 @@ function setup(options: Options) {
       clock += ms;
       return Promise.resolve();
     },
-    random: () => options.random ?? 0.5,
     now: () => clock,
     timeoutSignal: (ms) => {
       timeoutRequests.push(ms);
@@ -245,82 +241,22 @@ describe('FakeStoreProductSource: retries', () => {
     expect(((failure as Error).cause as Error).message).toContain('502');
   });
 
-  it('backs off with jitter: 100 ms then 200 ms at random 0.5', async () => {
+  it('pauses a fixed 200 ms before each retry', async () => {
     const { source, sleeps } = setup({
-      random: 0.5,
-      steps: [json({}, 500), json({}, 500), json(fixture())],
+      maxRetries: 2,
+      steps: [json({}, 500), json({}, 502), json(fixture())],
     });
 
     await source.listProducts();
 
-    expect(sleeps).toEqual([100, 200]);
+    expect(sleeps).toEqual([200, 200]);
   });
 
-  it('rounds the delay to whole milliseconds', async () => {
-    const { source, sleeps } = setup({ random: 0.3333, steps: [json({}, 500), json(fixture())] });
+  it('retries a 429 too', async () => {
+    const { source, calls } = setup({ steps: [json({}, 429), json(fixture())] });
 
-    await source.listProducts();
-
-    expect(sleeps).toEqual([67]);
-  });
-
-  it('applies full jitter: random 0 gives no delay', async () => {
-    const { source, sleeps } = setup({ random: 0, steps: [json({}, 500), json(fixture())] });
-
-    await source.listProducts();
-
-    expect(sleeps).toEqual([0]);
-  });
-
-  it('caps the backoff at 1500 ms', async () => {
-    const { source, sleeps } = setup({
-      maxRetries: 5,
-      random: 1,
-      deadlineMs: 60_000,
-      steps: [
-        json({}, 500),
-        json({}, 500),
-        json({}, 500),
-        json({}, 500),
-        json({}, 500),
-        json(fixture()),
-      ],
-    });
-
-    await source.listProducts();
-
-    expect(sleeps).toEqual([200, 400, 800, 1500, 1500]);
-  });
-
-  it('honours Retry-After in seconds on a 429', async () => {
-    const { source, sleeps } = setup({
-      steps: [json({}, 429, { 'retry-after': '1' }), json(fixture())],
-    });
-
-    await source.listProducts();
-
-    expect(sleeps).toEqual([1000]);
-  });
-
-  it('caps a long Retry-After at 1500 ms', async () => {
-    const { source, sleeps } = setup({
-      steps: [json({}, 503, { 'retry-after': '120' }), json(fixture())],
-    });
-
-    await source.listProducts();
-
-    expect(sleeps).toEqual([1500]);
-  });
-
-  it('ignores a Retry-After it cannot parse and falls back to jittered backoff', async () => {
-    const { source, sleeps } = setup({
-      random: 0.5,
-      steps: [json({}, 429, { 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }), json(fixture())],
-    });
-
-    await source.listProducts();
-
-    expect(sleeps).toEqual([100]);
+    expect(await source.listProducts()).toHaveLength(20);
+    expect(calls).toHaveLength(2);
   });
 
   it('retries a network error', async () => {
@@ -423,11 +359,10 @@ describe('FakeStoreProductSource: failures that are not retried', () => {
   });
 });
 
-describe('FakeStoreProductSource: timeouts and the total deadline', () => {
+describe('FakeStoreProductSource: timeouts', () => {
   it('maps timeouts on every attempt to an UpstreamTimeoutError', async () => {
     const { source, calls } = setup({
       timeoutsFire: true,
-      deadlineMs: 60_000,
       steps: [hang, hang, hang],
     });
 
@@ -456,81 +391,6 @@ describe('FakeStoreProductSource: timeouts and the total deadline', () => {
 
     expect(await source.listProducts()).toHaveLength(20);
     expect(calls).toHaveLength(2);
-  });
-
-  it('shrinks each attempt timeout to the remaining deadline and stops starting attempts', async () => {
-    const { source, calls, timeoutRequests } = setup({
-      timeoutsFire: true,
-      timeoutMs: 4000,
-      deadlineMs: 6000,
-      maxRetries: 2,
-      random: 0,
-      steps: [hang, hang, hang],
-    });
-
-    const failure = await source.listProducts().catch((error: unknown) => error);
-
-    expect(failure).toBeInstanceOf(UpstreamTimeoutError);
-    expect(calls.length).toBeLessThan(3);
-    expect(timeoutRequests).toEqual([4000, 2000]);
-  });
-
-  it.each([
-    ['is shorter than the backoff', 4100],
-    ['equals the backoff', 4200],
-  ])(
-    'does not sleep when the time left %s, and fails with the last error',
-    async (_label, deadlineMs) => {
-      const { source, calls, sleeps } = setup({
-        timeoutsFire: true,
-        timeoutMs: 4000,
-        deadlineMs,
-        random: 1,
-        steps: [hang, hang],
-      });
-
-      await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamTimeoutError);
-      expect(calls).toHaveLength(1);
-      expect(sleeps).toEqual([]);
-    },
-  );
-
-  it('sleeps and retries when the backoff fits inside the remaining budget', async () => {
-    const { source, calls, sleeps } = setup({
-      timeoutsFire: true,
-      timeoutMs: 4000,
-      deadlineMs: 4201,
-      random: 1,
-      steps: [hang, hang],
-    });
-
-    await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamTimeoutError);
-    expect(sleeps).toEqual([200]);
-    expect(calls).toHaveLength(2);
-  });
-
-  it('does not sleep a long Retry-After through the rest of the budget', async () => {
-    const { source, calls, sleeps } = setup({
-      deadlineMs: 1000,
-      steps: [json({}, 429, { 'retry-after': '5' }), json(fixture())],
-    });
-
-    await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamError);
-    expect(calls).toHaveLength(1);
-    expect(sleeps).toEqual([]);
-  });
-
-  it('does not start a retry when the deadline is already spent', async () => {
-    const { source, calls } = setup({
-      timeoutsFire: true,
-      timeoutMs: 5000,
-      deadlineMs: 5000,
-      random: 0,
-      steps: [hang, hang],
-    });
-
-    await expect(source.listProducts()).rejects.toBeInstanceOf(UpstreamTimeoutError);
-    expect(calls).toHaveLength(1);
   });
 
   it('an error after a timeout reports the last failure kind', async () => {
@@ -571,7 +431,6 @@ describe('FakeStoreProductSource: logging', () => {
 
   it('logs one warn per retry with attempt, reason and delay', async () => {
     const { source, logger } = setup({
-      random: 0.5,
       steps: [json({}, 503), json(fixture())],
     });
 
@@ -582,7 +441,7 @@ describe('FakeStoreProductSource: logging', () => {
       target: 'upstream.test',
       attempt: 1,
       reason: 'http_503',
-      delayMs: 100,
+      delayMs: 200,
     });
     expect(logger.at('debug').map((r) => r.fields.attempt)).toEqual([1, 2]);
   });

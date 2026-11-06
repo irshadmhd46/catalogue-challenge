@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compose, type ComposeDeps } from '../src/compose.js';
 import { loadConfig } from '../src/config/index.js';
-import { ConfigError } from '../src/domain/errors.js';
+import type { EnquiryEmail } from '../src/infrastructure/mail/enquiry-email.js';
+import type { MailTransport } from '../src/infrastructure/mail/smtp-enquiry-notifier.js';
+import type { SmtpTransportConfig } from '../src/infrastructure/mail/smtp-transport.js';
 import { FakeLogger } from './support/fake-logger.js';
-import { FakeRedis } from './support/fake-redis.js';
 import { upstreamProducts } from './support/fixtures.js';
 
-function setup(env: Record<string, string> = {}, redis = new FakeRedis()) {
+const VISITOR = {
+  productId: 1,
+  name: 'Ann Lee',
+  email: 'ann@example.test',
+  message: 'Is this backpack available in blue?',
+};
+
+function setup(env: Record<string, string> = {}) {
   const config = loadConfig({
     NODE_ENV: 'test',
     FAKESTORE_BASE_URL: 'http://upstream.test',
@@ -14,25 +22,41 @@ function setup(env: Record<string, string> = {}, redis = new FakeRedis()) {
   });
   const logger = new FakeLogger();
   const fetched: string[] = [];
-  let respond: () => Response = () => new Response(JSON.stringify(upstreamProducts()));
-  const createRedis = vi.fn<ComposeDeps['createRedis']>(() => redis);
+  let respond: (url: string) => Response = (url) =>
+    url.endsWith('/products')
+      ? new Response(JSON.stringify(upstreamProducts()))
+      : new Response(
+          JSON.stringify(upstreamProducts().find((p) => url.endsWith(`/${String(p.id)}`))),
+        );
+  const mail = { sent: [] as EnquiryEmail[], closed: 0, failWith: undefined as Error | undefined };
+  const transport: MailTransport = {
+    sendMail: (message) => {
+      mail.sent.push(message);
+      return mail.failWith ? Promise.reject(mail.failWith) : Promise.resolve({ accepted: [] });
+    },
+    close: () => {
+      mail.closed += 1;
+    },
+  };
+  const createTransport = vi.fn<(config: SmtpTransportConfig) => MailTransport>(() => transport);
   const deps: ComposeDeps = {
-    createRedis,
+    createTransport,
+    newId: () => '00000000-0000-4000-8000-000000000001',
+    now: () => new Date('2026-11-06T10:00:00Z'),
     fetch: (input) => {
-      fetched.push(
-        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
-      );
-      return Promise.resolve(respond());
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      fetched.push(url);
+      return Promise.resolve(respond(url));
     },
   };
   return {
     config,
     logger,
     fetched,
-    redis,
-    createRedis,
+    mail,
+    createTransport,
     run: () => compose(config, logger, deps),
-    respondWith: (make: () => Response) => {
+    respondWith: (make: (url: string) => Response) => {
       respond = make;
     },
   };
@@ -41,15 +65,10 @@ function setup(env: Record<string, string> = {}, redis = new FakeRedis()) {
 const featuredIds = async (service: { featured(): Promise<{ id: number }[]> }) =>
   (await service.featured()).map((p) => p.id);
 
-describe('compose: memory cache (the default)', () => {
-  it('builds a working catalogue service with no closers and never touches Redis', async () => {
-    const t = setup();
+describe('compose: the catalogue', () => {
+  it('builds a working catalogue service', async () => {
+    const { services } = await setup().run();
 
-    const { services, closers } = await t.run();
-
-    expect(closers).toEqual([]);
-    expect(t.createRedis).not.toHaveBeenCalled();
-    expect(t.redis.calls).toEqual([]);
     expect(await featuredIds(services.catalogService)).toEqual([12, 11, 3, 18, 5]);
   });
 
@@ -63,8 +82,7 @@ describe('compose: memory cache (the default)', () => {
   });
 
   it('passes the featured override to the service', async () => {
-    const t = setup({ FEATURED_PRODUCT_IDS: '7,2,15' });
-    const { services } = await t.run();
+    const { services } = await setup({ FEATURED_PRODUCT_IDS: '7,2,15' }).run();
 
     expect(await featuredIds(services.catalogService)).toEqual([7, 2, 15]);
   });
@@ -88,59 +106,6 @@ describe('compose: memory cache (the default)', () => {
       code: 'UPSTREAM_ERROR',
     });
     expect(t.fetched).toHaveLength(1);
-  });
-});
-
-describe('compose: the rate limiter follows the cache driver', () => {
-  it('uses an in-process limiter with the memory driver and never touches Redis', async () => {
-    const t = setup();
-    const { services } = await t.run();
-
-    const first = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
-    const second = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
-    const third = await services.rateLimiter.consume('read:1.2.3.4', 2, 60);
-
-    expect([first.allowed, second.allowed, third.allowed]).toEqual([true, true, false]);
-    expect(t.redis.evals).toEqual([]);
-    expect(t.createRedis).not.toHaveBeenCalled();
-  });
-
-  it('the in-process limiter follows the real clock: a denied client is allowed again after the window', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    try {
-      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-      const { services } = await setup().run();
-      await services.rateLimiter.consume('k', 1, 60);
-      expect((await services.rateLimiter.consume('k', 1, 60)).allowed).toBe(false);
-
-      vi.setSystemTime(new Date('2026-01-01T00:01:01Z'));
-
-      expect((await services.rateLimiter.consume('k', 1, 60)).allowed).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('uses the shared Redis client with the redis driver: one client, cache and limiter both on it', async () => {
-    const t = setup({ CACHE_DRIVER: 'redis', REDIS_URL: 'redis://cache.test:6379' });
-    t.redis.evalReply = [1, 60_000];
-    const { services } = await t.run();
-
-    await services.catalogService.featured();
-    const result = await services.rateLimiter.consume('enquiry:1.2.3.4', 5, 60);
-
-    expect(t.createRedis).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({ allowed: true, remaining: 4 });
-    expect(t.redis.evals.map((e) => e.args[0])).toEqual(['catalogue:v1:rl:enquiry:1.2.3.4']);
-    expect(t.redis.sets.map((s) => s.key)).toEqual(['catalogue:v1:products:all']);
-  });
-
-  it('registers a single redis closer for both', async () => {
-    const t = setup({ CACHE_DRIVER: 'redis', REDIS_URL: 'redis://cache.test:6379' });
-
-    const { closers } = await t.run();
-
-    expect(closers.map((c) => c.name)).toEqual(['redis']);
   });
 });
 
@@ -187,94 +152,122 @@ describe('compose: freshness and stale windows reach the caching decorator', () 
   });
 });
 
-describe('compose: redis cache', () => {
-  const env = {
-    CACHE_DRIVER: 'redis',
-    REDIS_URL: 'redis://user:topsecret@cache.test:6379',
-    CACHE_FRESH_TTL_SECONDS: '100',
-    CACHE_STALE_TTL_SECONDS: '500',
-  };
+describe('compose: the rate limiter', () => {
+  it('limits per key and follows the real clock', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      const { services } = await setup().run();
 
-  it('creates the client from REDIS_URL, connects, and registers a redis closer', async () => {
-    const t = setup(env);
+      expect((await services.rateLimiter.consume('k', 2, 60)).allowed).toBe(true);
+      expect((await services.rateLimiter.consume('k', 2, 60)).allowed).toBe(true);
+      expect((await services.rateLimiter.consume('k', 2, 60)).allowed).toBe(false);
 
-    const { closers } = await t.run();
-
-    expect(t.createRedis).toHaveBeenCalledExactlyOnceWith(env.REDIS_URL);
-    expect(t.redis.calls).toEqual(['connect', 'ping']);
-    expect(closers.map((c) => c.name)).toEqual(['redis']);
+      vi.setSystemTime(new Date('2026-01-01T00:01:01Z'));
+      expect((await services.rateLimiter.consume('k', 2, 60)).allowed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
+});
 
-  it('the redis closer quits the connection', async () => {
-    const t = setup(env);
-    const { closers } = await t.run();
-
-    await closers[0]?.close();
-
-    expect(t.redis.calls).toContain('quit');
-  });
-
-  it('logs the host only, never the credentials', async () => {
-    const t = setup(env);
+describe('compose: enquiries and the SMTP notifier', () => {
+  it('builds the transport from the SMTP settings', async () => {
+    const t = setup({
+      SMTP_HOST: 'smtp.example.test',
+      SMTP_PORT: '2525',
+      SMTP_TLS: 'starttls',
+      SMTP_USER: 'mailer',
+      SMTP_PASSWORD: 'p4ssw0rd',
+      SMTP_TIMEOUT_MS: '3210',
+    });
 
     await t.run();
 
-    expect(t.logger.at('info').map((r) => r.message)).toContain('redis cache connected');
-    expect(JSON.stringify(t.logger.records)).toContain('cache.test:6379');
-    expect(JSON.stringify(t.logger.records)).not.toContain('topsecret');
+    expect(t.createTransport).toHaveBeenCalledExactlyOnceWith({
+      host: 'smtp.example.test',
+      port: 2525,
+      tls: 'starttls',
+      user: 'mailer',
+      password: 'p4ssw0rd',
+      timeoutMs: 3210,
+    });
   });
 
-  it('stores the catalogue in Redis under the versioned prefix for fresh plus stale seconds', async () => {
-    const t = setup(env);
+  it('sends enquiries from MAIL_FROM to SALES_INBOX with the visitor as reply-to', async () => {
+    const t = setup({
+      MAIL_FROM: 'no-reply@shop.example.test',
+      SALES_INBOX: 'sales@shop.example.test',
+    });
     const { services } = await t.run();
 
-    await services.catalogService.featured();
+    const id = await services.enquiryService.submit(VISITOR);
 
-    expect(t.redis.sets).toHaveLength(1);
-    expect(t.redis.sets[0]).toMatchObject({ key: 'catalogue:v1:products:all', seconds: 600 });
+    expect(id).toBe('00000000-0000-4000-8000-000000000001');
+    expect(t.mail.sent).toHaveLength(1);
+    expect(t.mail.sent[0]).toMatchObject({
+      from: 'no-reply@shop.example.test',
+      to: 'sales@shop.example.test',
+      replyTo: { name: 'Ann Lee', address: 'ann@example.test' },
+      subject: expect.stringContaining('product 1: Fjallraven') as unknown,
+    });
   });
 
-  it('serves the second request from Redis without another upstream call', async () => {
-    const t = setup(env);
+  it('takes the product from the composed catalogue, not from the request', async () => {
+    const t = setup();
     const { services } = await t.run();
 
-    await services.catalogService.featured();
-    await services.catalogService.featured();
+    await services.enquiryService.submit({ ...VISITOR, productId: 7 });
 
-    expect(t.fetched).toHaveLength(1);
+    expect(t.fetched).toContain('http://upstream.test/products/7');
   });
 
-  it('keeps answering from the upstream when Redis commands start failing', async () => {
-    const t = setup(env);
+  it('applies SMTP_TIMEOUT_MS as the total send deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup({ SMTP_TIMEOUT_MS: '250' });
+      const { services } = await t.run();
+      const transport = t.createTransport.mock.results[0]?.value as MailTransport;
+      vi.spyOn(transport, 'sendMail').mockReturnValue(new Promise<never>(() => undefined));
+
+      const pending = services.enquiryService.submit(VISITOR).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(250);
+
+      expect(await pending).toMatchObject({ code: 'NOTIFICATION_FAILED' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('registers only the smtp closer, and it closes the transport once', async () => {
+    const t = setup();
+    const { closers } = await t.run();
+    expect(closers.map((c) => c.name)).toEqual(['smtp']);
+    expect(t.mail.closed).toBe(0);
+
+    await closers[0]?.close();
+
+    expect(t.mail.closed).toBe(1);
+  });
+
+  it('turns a failing notifier into a NotificationError for the caller', async () => {
+    const t = setup();
+    t.mail.failWith = Object.assign(new Error('boom'), { code: 'ECONNREFUSED' });
     const { services } = await t.run();
-    t.redis.failWith = new Error('Command timed out');
 
-    expect(await featuredIds(services.catalogService)).toEqual([12, 11, 3, 18, 5]);
-    expect(t.logger.at('warn').length).toBeGreaterThan(0);
+    await expect(services.enquiryService.submit(VISITOR)).rejects.toMatchObject({
+      code: 'NOTIFICATION_FAILED',
+    });
+    expect(t.mail.sent).toHaveLength(1);
   });
 
-  it('fails fast with a ConfigError naming REDIS_URL, host only, when Redis is unreachable', async () => {
-    const t = setup(env, Object.assign(new FakeRedis(), {}));
-    t.redis.failWith = new Error('Connection is closed.');
+  it('exposes exactly the services the app needs', async () => {
+    const { services } = await setup().run();
 
-    const failure = await t.run().catch((error: unknown) => error);
-
-    expect(failure).toBeInstanceOf(ConfigError);
-    const error = failure as ConfigError;
-    expect(error.details?.map((d) => d.field)).toEqual(['REDIS_URL']);
-    expect(error.details?.[0]?.message).toBe('Redis is not reachable at cache.test:6379');
-    expect(JSON.stringify({ message: error.message, details: error.details })).not.toContain(
-      'topsecret',
-    );
-    expect((error.cause as Error).cause).toBe(t.redis.failWith);
-  });
-
-  it('drops the socket when the startup check fails', async () => {
-    const t = setup(env);
-    t.redis.failWith = new Error('Connection is closed.');
-
-    await t.run().catch(() => undefined);
-
-    expect(t.redis.disconnected).toBe(true);
+    expect(Object.keys(services).sort()).toEqual([
+      'catalogService',
+      'enquiryService',
+      'rateLimiter',
+    ]);
   });
 });

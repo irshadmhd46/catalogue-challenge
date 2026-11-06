@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { bootstrap } from './bootstrap.js';
 import { compose } from './compose.js';
+import { createSmtpTransport } from './infrastructure/mail/smtp-transport.js';
 import { getRequestContext } from './http/request-context.js';
 import { createPinoLogger } from './infrastructure/logging/pino-logger.js';
 
@@ -15,6 +16,6 @@ await bootstrap({
       pretty: config.nodeEnv === 'development',
       getContext: getRequestContext,
     }),
-  compose: (config, logger) => compose(config, logger),
+  compose: (config, logger) => compose(config, logger, { createTransport: createSmtpTransport }),
   buildApp,
 });

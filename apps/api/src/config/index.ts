@@ -28,11 +28,6 @@ const httpBaseUrl = z.string().refine((raw) => {
   );
 }, 'must be an http(s) URL without credentials, query or fragment');
 
-const redisUrl = z.string().refine((raw) => {
-  const url = parseUrl(raw);
-  return url !== undefined && (url.protocol === 'redis:' || url.protocol === 'rediss:');
-}, 'must be a redis: or rediss: URL');
-
 const SMTP_HOST_NAME = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
 
 const smtpHost = z
@@ -69,10 +64,7 @@ const envSchema = z
     CATALOG_DRIVER: z.enum(['fakestore']).default('fakestore'),
     FAKESTORE_BASE_URL: httpBaseUrl.default('https://fakestoreapi.com'),
     UPSTREAM_TIMEOUT_MS: boundedInt(4000, 1, 30_000),
-    UPSTREAM_DEADLINE_MS: boundedInt(10_000, 1, 60_000),
-    UPSTREAM_MAX_RETRIES: boundedInt(2, 0, 5),
-    CACHE_DRIVER: z.enum(['memory', 'redis']).default('memory'),
-    REDIS_URL: redisUrl.optional(),
+    UPSTREAM_MAX_RETRIES: boundedInt(1, 0, 3),
     CACHE_FRESH_TTL_SECONDS: boundedInt(60, 1, 86_400),
     CACHE_STALE_TTL_SECONDS: boundedInt(3600, 0, 604_800),
     FEATURED_PRODUCT_IDS: featuredIds.optional(),
@@ -95,13 +87,6 @@ const envSchema = z
         code: 'custom',
         path: ['FAKESTORE_BASE_URL'],
         message: 'must use https in production',
-      });
-    }
-    if (env.CACHE_DRIVER === 'redis' && env.REDIS_URL === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['REDIS_URL'],
-        message: 'is required when CACHE_DRIVER is redis',
       });
     }
     if (env.NODE_ENV === 'production') {
@@ -129,13 +114,6 @@ const envSchema = z
         message: 'is required when the other of SMTP_USER and SMTP_PASSWORD is set',
       });
     }
-    if (env.UPSTREAM_DEADLINE_MS < env.UPSTREAM_TIMEOUT_MS) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['UPSTREAM_DEADLINE_MS'],
-        message: 'must not be shorter than UPSTREAM_TIMEOUT_MS',
-      });
-    }
   });
 
 export interface AppConfig {
@@ -149,11 +127,7 @@ export interface AppConfig {
   readonly catalogDriver: 'fakestore';
   readonly fakestoreBaseUrl: string;
   readonly upstreamTimeoutMs: number;
-  readonly upstreamDeadlineMs: number;
   readonly upstreamMaxRetries: number;
-  readonly cacheDriver: 'memory' | 'redis';
-  /** May carry credentials: never log it. */
-  readonly redisUrl: string | undefined;
   readonly cacheFreshTtlSeconds: number;
   readonly cacheStaleTtlSeconds: number;
   readonly featuredProductIds: readonly number[];
@@ -202,10 +176,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     catalogDriver: values.CATALOG_DRIVER,
     fakestoreBaseUrl: values.FAKESTORE_BASE_URL,
     upstreamTimeoutMs: values.UPSTREAM_TIMEOUT_MS,
-    upstreamDeadlineMs: values.UPSTREAM_DEADLINE_MS,
     upstreamMaxRetries: values.UPSTREAM_MAX_RETRIES,
-    cacheDriver: values.CACHE_DRIVER,
-    redisUrl: values.REDIS_URL,
     cacheFreshTtlSeconds: values.CACHE_FRESH_TTL_SECONDS,
     cacheStaleTtlSeconds: values.CACHE_STALE_TTL_SECONDS,
     featuredProductIds: Object.freeze(values.FEATURED_PRODUCT_IDS ?? []),
@@ -232,7 +203,6 @@ export function describeConfig(config: AppConfig): Readonly<Record<string, unkno
     port: config.port,
     logLevel: config.logLevel,
     catalogDriver: config.catalogDriver,
-    cacheDriver: config.cacheDriver,
     upstreamHost: new URL(config.fakestoreBaseUrl).host,
     notifierDriver: config.notifierDriver,
     smtpHost: config.smtpHost,

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { CatalogService } from '../../src/application/catalog-service.js';
+import { EnquiryService } from '../../src/application/enquiry-service.js';
 import { loadConfig } from '../../src/config/index.js';
 import { CachedProductSource } from '../../src/infrastructure/cache/cached-product-source.js';
 import { MemoryCache } from '../../src/infrastructure/cache/memory-cache.js';
 import { FakeStoreProductSource } from '../../src/infrastructure/catalog/fakestore-product-source.js';
 import { MemoryRateLimiter } from '../../src/infrastructure/rate-limit/memory-rate-limiter.js';
+import { FakeEnquiryNotifier } from '../support/fake-enquiry-notifier.js';
 import { FakeLogger } from '../support/fake-logger.js';
 import { upstreamProducts } from '../support/fixtures.js';
 
@@ -31,12 +33,10 @@ async function stack(upstream: Upstream, options: { timeoutsFire?: boolean } = {
   const inner = new FakeStoreProductSource({
     baseUrl: 'https://upstream.test',
     timeoutMs: 4000,
-    deadlineMs: 10_000,
     maxRetries: 0,
     logger,
     fetch: stubFetch,
     sleep: () => Promise.resolve(),
-    random: () => 0,
     now: () => clock.ms,
     timeoutSignal: () => {
       const controller = new AbortController();
@@ -54,10 +54,18 @@ async function stack(upstream: Upstream, options: { timeoutsFire?: boolean } = {
     staleSeconds: STALE,
     now: () => clock.ms,
   });
+  const catalogService = new CatalogService(source, logger);
   const app = await buildApp({
     config: loadConfig({ NODE_ENV: 'test' }),
     logger,
-    catalogService: new CatalogService(source, logger),
+    catalogService,
+    enquiryService: new EnquiryService(
+      catalogService,
+      new FakeEnquiryNotifier(),
+      logger,
+      () => '00000000-0000-4000-8000-000000000001',
+      () => new Date(0),
+    ),
     rateLimiter: new MemoryRateLimiter(() => clock.ms),
   });
 

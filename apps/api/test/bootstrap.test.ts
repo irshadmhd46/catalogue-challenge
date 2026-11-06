@@ -1,9 +1,11 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { CatalogService } from '../src/application/catalog-service.js';
+import { EnquiryService } from '../src/application/enquiry-service.js';
 import { bootstrap, type Composition, type RunningApp } from '../src/bootstrap.js';
 import { ConfigError } from '../src/domain/errors.js';
 import { MemoryRateLimiter } from '../src/infrastructure/rate-limit/memory-rate-limiter.js';
+import { FakeEnquiryNotifier } from './support/fake-enquiry-notifier.js';
 import { FakeProductSource } from './support/fake-product-source.js';
 import { FakeLogger } from './support/fake-logger.js';
 
@@ -26,11 +28,18 @@ function setup(
   const createLogger = vi.fn(() => appLogger);
   const catalogService = new CatalogService(new FakeProductSource(), appLogger);
   const rateLimiter = new MemoryRateLimiter();
+  const enquiryService = new EnquiryService(
+    catalogService,
+    new FakeEnquiryNotifier(),
+    appLogger,
+    () => 'id',
+    () => new Date(0),
+  );
   const compose = vi.fn(
     composeImpl ??
       (() =>
         Promise.resolve<Composition>({
-          services: { catalogService, rateLimiter },
+          services: { catalogService, enquiryService, rateLimiter },
           closers: [
             { name: 'first', close: () => (order.push('first'), Promise.resolve()) },
             { name: 'second', close: () => (order.push('second'), Promise.resolve()) },
@@ -50,6 +59,7 @@ function setup(
     createLogger,
     compose,
     catalogService,
+    enquiryService,
     rateLimiter,
     order,
     proc,
@@ -104,7 +114,6 @@ describe('bootstrap: startup', () => {
       port: 4321,
       logLevel: 'info',
       catalogDriver: 'fakestore',
-      cacheDriver: 'memory',
       upstreamHost: 'fakestoreapi.com',
       notifierDriver: 'smtp',
       smtpHost: 'localhost',
@@ -174,6 +183,7 @@ describe('bootstrap: composition', () => {
       config: expect.objectContaining({ port: 4321 }) as unknown,
       logger: t.appLogger,
       catalogService: t.catalogService,
+      enquiryService: t.enquiryService,
       rateLimiter: t.rateLimiter,
     });
   });
@@ -196,6 +206,13 @@ describe('bootstrap: composition', () => {
       Promise.resolve({
         services: {
           catalogService: new CatalogService(new FakeProductSource(), new FakeLogger()),
+          enquiryService: new EnquiryService(
+            new CatalogService(new FakeProductSource(), new FakeLogger()),
+            new FakeEnquiryNotifier(),
+            new FakeLogger(),
+            () => 'id',
+            () => new Date(0),
+          ),
           rateLimiter: new MemoryRateLimiter(),
         },
         closers: [{ name: 'redis', close: () => Promise.reject(failure) }],

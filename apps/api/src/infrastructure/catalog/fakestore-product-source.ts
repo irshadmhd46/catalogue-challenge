@@ -6,19 +6,17 @@ import type { ProductSource } from '../../domain/product-source.js';
 import { upstreamProductListSchema, upstreamProductSchema } from './fakestore-mapper.js';
 
 const MAX_BODY_BYTES = 1024 * 1024;
-const BACKOFF_BASE_MS = 200;
-const BACKOFF_MAX_MS = 1500;
+// A short fixed pause before the single retry: enough to ride out a blip, not a retry strategy.
+const RETRY_DELAY_MS = 200;
 
 export interface FakeStoreOptions {
   readonly baseUrl: string;
   readonly timeoutMs: number;
-  readonly deadlineMs: number;
   readonly maxRetries: number;
   readonly logger: Logger;
   /** Everything below defaults to the real thing; tests replace it to stay deterministic. */
   readonly fetch?: typeof fetch;
   readonly sleep?: (ms: number) => Promise<void>;
-  readonly random?: () => number;
   readonly now?: () => number;
   readonly timeoutSignal?: (ms: number) => AbortSignal;
 }
@@ -29,7 +27,6 @@ interface Failure {
   readonly reason: string;
   readonly cause: unknown;
   readonly status?: number;
-  readonly retryAfterMs?: number;
 }
 
 type Attempt<T> =
@@ -52,7 +49,6 @@ export class FakeStoreProductSource implements ProductSource {
   private readonly host: string;
   private readonly doFetch: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
-  private readonly random: () => number;
   private readonly now: () => number;
   private readonly timeoutSignal: (ms: number) => AbortSignal;
 
@@ -63,7 +59,6 @@ export class FakeStoreProductSource implements ProductSource {
     this.host = base.host;
     this.doFetch = options.fetch ?? ((input, init) => fetch(input, init));
     this.sleep = options.sleep ?? ((ms) => sleepFor(ms));
-    this.random = options.random ?? Math.random;
     this.now = options.now ?? Date.now;
     this.timeoutSignal = options.timeoutSignal ?? ((ms) => AbortSignal.timeout(ms));
   }
@@ -115,22 +110,11 @@ export class FakeStoreProductSource implements ProductSource {
 
   private async get<T>(path: string, parse: (reply: Reply) => Attempt<T>): Promise<T> {
     const url = new URL(path, this.base);
-    const startedAt = this.now();
     const maxAttempts = this.options.maxRetries + 1;
     let last: Failure | undefined;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const remaining = this.options.deadlineMs - (this.now() - startedAt);
-      if (attempt > 1 && remaining <= 0) {
-        break;
-      }
-
-      const result = await this.attemptOnce(
-        url,
-        attempt,
-        Math.min(this.options.timeoutMs, remaining),
-        parse,
-      );
+      const result = await this.attemptOnce(url, attempt, parse);
       if (result.ok) {
         return result.value;
       }
@@ -139,16 +123,11 @@ export class FakeStoreProductSource implements ProductSource {
       if (!last.retryable || attempt === maxAttempts) {
         break;
       }
-      const delayMs = this.delayBeforeRetry(attempt, last.retryAfterMs);
-      // Sleeping through the rest of the budget would only delay the same failure.
-      if (delayMs >= this.options.deadlineMs - (this.now() - startedAt)) {
-        break;
-      }
       this.options.logger.warn(
-        { target: this.host, attempt, reason: last.reason, delayMs },
+        { target: this.host, attempt, reason: last.reason, delayMs: RETRY_DELAY_MS },
         'retrying upstream call',
       );
-      await this.sleep(delayMs);
+      await this.sleep(RETRY_DELAY_MS);
     }
 
     throw last?.timedOut
@@ -159,10 +138,9 @@ export class FakeStoreProductSource implements ProductSource {
   private async attemptOnce<T>(
     url: URL,
     attempt: number,
-    timeoutMs: number,
     parse: (reply: Reply) => Attempt<T>,
   ): Promise<Attempt<T>> {
-    const signal = this.timeoutSignal(timeoutMs);
+    const signal = this.timeoutSignal(this.options.timeoutMs);
     const startedAt = this.now();
     let status: number | undefined;
 
@@ -182,7 +160,6 @@ export class FakeStoreProductSource implements ProductSource {
           reason: `http_${String(status)}`,
           cause: new Error(`upstream responded ${String(status)}`),
           status,
-          retryAfterMs: retryAfterMs(response.headers.get('retry-after')),
         });
       }
       if (status === 404) {
@@ -219,15 +196,6 @@ export class FakeStoreProductSource implements ProductSource {
       );
     }
   }
-
-  private delayBeforeRetry(attempt: number, retryAfter: number | undefined): number {
-    if (retryAfter !== undefined) {
-      return Math.min(retryAfter, BACKOFF_MAX_MS);
-    }
-    return Math.round(
-      this.random() * Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (attempt - 1)),
-    );
-  }
 }
 
 function fail(partial: Omit<Failure, 'timedOut'> & { timedOut?: boolean }): {
@@ -240,13 +208,6 @@ function fail(partial: Omit<Failure, 'timedOut'> & { timedOut?: boolean }): {
 /** A payload we cannot trust: not retried, because asking again returns the same thing. */
 function invalid(cause: unknown): { ok: false; failure: Failure } {
   return fail({ retryable: false, reason: 'invalid_payload', cause });
-}
-
-function retryAfterMs(header: string | null): number | undefined {
-  if (header === null || !/^[0-9]{1,6}$/.test(header.trim())) {
-    return undefined;
-  }
-  return Number(header.trim()) * 1000;
 }
 
 async function readBody(response: Response): Promise<string> {

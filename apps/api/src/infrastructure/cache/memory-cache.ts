@@ -8,7 +8,7 @@ interface Entry {
 
 /**
  * Stores a JSON copy so callers can never share or mutate cached objects, and so behaviour matches
- * the Redis adapter. Only found products are cached, so the key count is bounded by the catalogue.
+ * a future shared (e.g. Redis) adapter. Only found products are cached, so the key count is bounded by the catalogue.
  */
 export class MemoryCache implements Cache {
   private readonly entries = new Map<string, Entry>();

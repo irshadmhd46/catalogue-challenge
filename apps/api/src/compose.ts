@@ -1,82 +1,57 @@
+import { randomUUID } from 'node:crypto';
 import { CatalogService } from './application/catalog-service.js';
-import type { Closer, Composition } from './bootstrap.js';
+import { EnquiryService } from './application/enquiry-service.js';
+import type { Composition } from './bootstrap.js';
 import type { AppConfig } from './config/index.js';
-import type { Cache } from './domain/cache.js';
-import { ConfigError } from './domain/errors.js';
 import type { Logger } from './domain/logger.js';
-import type { RateLimiter } from './domain/rate-limiter.js';
 import type { ProductSource } from './domain/product-source.js';
 import { CachedProductSource } from './infrastructure/cache/cached-product-source.js';
 import { MemoryCache } from './infrastructure/cache/memory-cache.js';
-import {
-  RedisCache,
-  createRedisClient,
-  describeRedisUrl,
-  type RedisLike,
-} from './infrastructure/cache/redis-cache.js';
 import { FakeStoreProductSource } from './infrastructure/catalog/fakestore-product-source.js';
+import {
+  SmtpEnquiryNotifier,
+  type MailTransport,
+} from './infrastructure/mail/smtp-enquiry-notifier.js';
+import type { SmtpTransportConfig } from './infrastructure/mail/smtp-transport.js';
 import { MemoryRateLimiter } from './infrastructure/rate-limit/memory-rate-limiter.js';
-import { RedisRateLimiter } from './infrastructure/rate-limit/redis-rate-limiter.js';
 
 /** The only parts of the outside world the wiring touches, replaceable in tests. */
 export interface ComposeDeps {
-  readonly createRedis: (url: string) => RedisLike;
+  readonly createTransport: (config: SmtpTransportConfig) => MailTransport;
   readonly fetch?: typeof fetch;
+  readonly newId?: () => string;
+  readonly now?: () => Date;
 }
 
-const realDeps: ComposeDeps = { createRedis: createRedisClient };
-
-/** The cache and the rate limiter share one backing store: memory, or a single Redis connection. */
-async function createStores(
-  config: AppConfig,
-  logger: Logger,
-  deps: ComposeDeps,
-): Promise<{ cache: Cache; rateLimiter: RateLimiter; closers: Closer[] }> {
-  switch (config.cacheDriver) {
-    case 'memory':
-      return { cache: new MemoryCache(), rateLimiter: new MemoryRateLimiter(), closers: [] };
-    case 'redis': {
-      // Config validation guarantees a URL for this driver.
-      const url = config.redisUrl ?? '';
-      const client = deps.createRedis(url);
-      const cache = new RedisCache(client, logger);
-      try {
-        await cache.connect();
-      } catch (cause) {
-        // Fail fast: silently running without the shared cache would hide a deployment mistake.
-        throw new ConfigError(
-          [{ field: 'REDIS_URL', message: `Redis is not reachable at ${describeRedisUrl(url)}` }],
-          { cause },
-        );
-      }
-      logger.info({ host: describeRedisUrl(url) }, 'redis cache connected');
-      return {
-        cache,
-        rateLimiter: new RedisRateLimiter(client),
-        closers: [{ name: 'redis', close: () => cache.close() }],
-      };
-    }
+function createNotifier(config: AppConfig, deps: ComposeDeps): SmtpEnquiryNotifier {
+  switch (config.notifierDriver) {
+    case 'smtp':
+      return new SmtpEnquiryNotifier(
+        deps.createTransport({
+          host: config.smtpHost,
+          port: config.smtpPort,
+          tls: config.smtpTls,
+          user: config.smtpUser,
+          password: config.smtpPassword,
+          timeoutMs: config.smtpTimeoutMs,
+        }),
+        { from: config.mailFrom, to: config.salesInbox, timeoutMs: config.smtpTimeoutMs },
+      );
   }
 }
 
-function createProductSource(
-  config: AppConfig,
-  logger: Logger,
-  cache: Cache,
-  deps: ComposeDeps,
-): ProductSource {
+function createProductSource(config: AppConfig, logger: Logger, deps: ComposeDeps): ProductSource {
   switch (config.catalogDriver) {
     case 'fakestore':
       return new CachedProductSource({
         inner: new FakeStoreProductSource({
           baseUrl: config.fakestoreBaseUrl,
           timeoutMs: config.upstreamTimeoutMs,
-          deadlineMs: config.upstreamDeadlineMs,
           maxRetries: config.upstreamMaxRetries,
           logger,
           ...(deps.fetch ? { fetch: deps.fetch } : {}),
         }),
-        cache,
+        cache: new MemoryCache(),
         logger,
         freshSeconds: config.cacheFreshTtlSeconds,
         staleSeconds: config.cacheStaleTtlSeconds,
@@ -88,13 +63,28 @@ function createProductSource(
  * The composition root: the one place that decides which adapters implement which ports.
  * `main.ts` only starts it, which keeps this file importable and testable.
  */
-export async function compose(
+export function compose(
   config: AppConfig,
   logger: Logger,
-  deps: ComposeDeps = realDeps,
+  deps: ComposeDeps,
 ): Promise<Composition> {
-  const { cache, rateLimiter, closers } = await createStores(config, logger, deps);
-  const source = createProductSource(config, logger, cache, deps);
-  const catalogService = new CatalogService(source, logger, config.featuredProductIds);
-  return { services: { catalogService, rateLimiter }, closers };
+  const catalogService = new CatalogService(
+    createProductSource(config, logger, deps),
+    logger,
+    config.featuredProductIds,
+  );
+
+  const notifier = createNotifier(config, deps);
+  const enquiryService = new EnquiryService(
+    catalogService,
+    notifier,
+    logger,
+    deps.newId ?? randomUUID,
+    deps.now ?? (() => new Date()),
+  );
+
+  return Promise.resolve({
+    services: { catalogService, enquiryService, rateLimiter: new MemoryRateLimiter() },
+    closers: [{ name: 'smtp', close: () => Promise.resolve(notifier.close()) }],
+  });
 }
