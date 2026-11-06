@@ -2,7 +2,7 @@
 
 `api-foundations` and `catalogue-api` provide the app factory, config, logging with redaction, the
 error envelope (`ValidationError`, `NotFoundError`, `RateLimitedError`, `NotificationError`), the
-catalogue service, a Redis connection used by the cache, and a composition root in `compose.ts`.
+catalogue service, an in-memory cache, and a composition root in `compose.ts`.
 This change adds the one write path: an enquiry emailed to a sales inbox. Everything it touches is
 untrusted or personal: the request body (name, email, phone, message), the product title (from the
 upstream), and the client IP (for rate limiting).
@@ -21,8 +21,7 @@ rate limit and a body size limit; `trustProxy` is decided deliberately and verif
   not (no silent loss, no duplicate sends).
 - A bot cannot use the endpoint to inject headers, relay mail, flood the inbox, or learn anything
   about the system from the response.
-- Rate limiting covers all public API routes, works across several API instances when Redis is on,
-  and degrades without taking the API down.
+- Rate limiting covers all public API routes and degrades without taking the API down.
 - No personal data in logs or error responses.
 
 **Non-Goals:** persistence or queued delivery, bot challenges, HTML mail, confirmation mail to the
@@ -102,16 +101,14 @@ visitor's retry. It never logs a failure itself (log once).
   `api-foundations` security review ("redaction paths cover shapes nothing logs yet; the real risk
   is `err`").
 
-### 5. Rate limiting: a small port with two adapters, not a plugin
+### 5. Rate limiting: a small port with an in-memory adapter, not a plugin
 
 `RateLimiter.consume(key, limit, windowSeconds)` returns `{ allowed, limit, remaining,
-retryAfterSeconds }`. `MemoryRateLimiter` is the default; `RedisRateLimiter` shares the cache's Redis
-connection so limits hold across API instances. Both use a fixed window: the first hit starts the
-window, the count is atomic, the window ends `windowSeconds` after the first hit.
+retryAfterSeconds }`. `MemoryRateLimiter` is the only adapter: it is per process, so with several API
+instances each enforces its own limit (a shared Redis limiter was designed, built, then cut as beyond
+the brief; see DECISIONS.md). It uses a fixed window: the first hit starts the window and it ends
+`windowSeconds` after the first hit.
 
-- **Redis atomicity**: one Lua script increments the counter, sets the expiry on the first hit, and
-  returns the count and the time left. Two separate commands could leave a counter without an expiry
-  (a permanent block) if the process died between them.
 - **Memory adapter**: a `Map` with an injected clock, expired entries purged on access and when the
   map passes 10 000 keys, then the oldest evicted, so a flood of source addresses cannot grow memory
   without bound.
@@ -125,11 +122,10 @@ window, the count is atomic, the window ends `windowSeconds` after the first hit
   for a low-risk form) and an `error` line is written, at most once every 30 s so an outage does not
   flood the log. The decision is recorded in DECISIONS.md.
 - **Alternative: `@fastify/rate-limit`.** It is well maintained, but: its store failures are
-  silent under `skipOnError` (our rules require a log), its Redis mode needs a full ioredis client
-  rather than our narrow, fakeable interface, it would put its response shape and error handling
+  silent under `skipOnError` (our rules require a log), it would put its response shape and error handling
   next to ours, and it ties the limiter to Fastify, while a port keeps the algorithm testable with a
-  fake clock and swappable. The cost is about 120 lines of security-relevant code of our own, which is
-  why it has a shared contract suite, a mutation check, and a real-Redis run.
+  fake clock and swappable. The cost is about 100 lines of security-relevant code of our own, which is
+  why it has a contract suite and mutation-checked tests.
 - **Known limits**: a fixed window allows up to twice the limit across a boundary; IPv6 clients are
   keyed by full address (a `/64` grouping is a next step); a client behind shared NAT shares a
   bucket.
@@ -156,24 +152,22 @@ never in an error, never in a log. The startup summary gains `notifierDriver` an
 
 ### 8. Composition
 
-`compose.ts` creates one Redis client when `CACHE_DRIVER=redis` and gives it to both `RedisCache` and
-`RedisRateLimiter` (one connection, one `error` listener, one closer). It builds the SMTP transport
-and notifier from config, the `EnquiryService`, and chooses the limiter by the same cache driver.
-Closers run after the HTTP server in reverse order: SMTP transport, then Redis. `ComposeDeps` gains a
-`createTransport` factory so tests inject a stub.
+`compose.ts` builds the SMTP transport and notifier from config, the `EnquiryService` and the memory
+limiter. The SMTP closer runs after the HTTP server. `ComposeDeps` has a `createTransport` factory so
+tests inject a stub (and the real transport is also tested against a loopback SMTP server).
 
 ### 9. Local environment
 
-A minimal `compose.yaml` runs Mailpit (SMTP on 1025, web UI on 8025, both above 1024 so rootless
-Podman works) and an optional `redis` profile. The API and web services join it in `web-storefront`.
-Mailpit is the manual drill for "the enquiry arrives"; automated tests never open a socket.
+`compose.yaml` runs Mailpit (SMTP on 1025, web UI on 8025, both above 1024 so rootless Podman works)
+together with the API and web services, which are added in `web-storefront`. Mailpit is the manual
+check for "the sales inbox receives the email".
 
 ### 10. Failure policy per external dependency
 
 | Dependency | Timeout | Retry | On failure | Logging |
 | --- | --- | --- | --- | --- |
 | SMTP server | 8 s total (connection, greeting and socket timeouts the same) | none, ever | `NotificationError` 502; visitor can retry | one `error` from the central handler with `enquiryId`; cause is code/command/responseCode only |
-| Redis (rate limiter) | 1 s per command (shared client) | none per command; client reconnects | fail open: request allowed | `error`, at most once per 30 s |
+| Rate limiter store (in-memory) | n/a | n/a | fail open if it ever throws: request allowed | `error`, at most once per 30 s |
 | Upstream catalogue (product lookup) | as in `catalogue-api` | as in `catalogue-api` | `UpstreamError` 502/504, no email sent | central handler |
 
 ### 11. Test strategy
@@ -181,26 +175,26 @@ Mailpit is the manual drill for "the enquiry arrives"; automated tests never ope
 - Service tests first (RED then GREEN) with a fake catalogue source and a fake notifier.
 - `buildEnquiryEmail` as a table: header injection attempts in name, subject and product title,
   sender and recipient fixed, no extra headers, plain text only.
-- Adapter tests through nodemailer's `jsonTransport` and stub transports for each failure and timeout.
-- A shared `RateLimiter` contract suite: memory always, Redis when `REDIS_URL` is set.
+- Adapter tests with stub transports for each failure and timeout, and the real transport against a
+  loopback SMTP server for the wire format.
+- A shared `RateLimiter` contract suite for the memory adapter, reusable by a future adapter.
 - Hook tests with a fake limiter and a fake clock: scopes, headers, 429 envelope and `Retry-After`,
   fail-open with a single throttled `error`, `/healthz` and 404 not limited.
 - A logging test across the whole flow (success, notifier failure, validation failure, 404, 429) that
   captures every log line through the real pino adapter and asserts none contains the submitted
   email, phone, name or message.
-- Whole-stack tests through `inject` with the real service, route, hook, memory limiter and a
-  `jsonTransport`.
+- End-to-end tests through `inject` with the real service, route, hook, memory limiter and the real
+  SMTP transport against an in-process loopback SMTP server.
 
 ## Risks / Trade-offs
 
 - [An enquiry can be lost: it is not persisted, and a crash between SMTP accept and the 202 is not
   visible] -> The visitor sees an error on any failure we know about; queued delivery is the
   recorded next step.
-- [Our limiter has a bug that blocks everyone or nobody] -> Contract suite on both adapters, mutation
-  checks on every boundary, a real-Redis run, and the `trustProxy` tests.
-- [Redis down means no rate limiting] -> Fail open is a recorded decision; the error log makes it
-  visible, and the in-process fallback is not used because it would give a false sense of a shared
-  limit.
+- [Our limiter has a bug that blocks everyone or nobody] -> Contract suite, mutation checks on every
+  boundary, and the `trustProxy` tests.
+- [Per-process limits are not shared across API instances] -> Accepted for a proof of concept; a shared
+  store (Redis) behind the same port is the recorded next step.
 - [A shared NAT or office blocks real visitors at 5 per minute] -> The limits are configuration.
 - [Product titles with exotic Unicode in the subject] -> Control characters are removed and the
   subject truncated; mail clients encode the rest (RFC 2047) through nodemailer.

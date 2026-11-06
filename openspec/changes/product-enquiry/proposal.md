@@ -1,3 +1,10 @@
+## Scope reduction (2026-11-06)
+
+After comparing the work with the challenge brief ("a small, well-reasoned solution beats a large,
+unexplained one"), Redis was removed everywhere: no Redis limiter, no shared Redis connection, no
+`redis` compose profile. The rate limiter is in-memory per process. Cuts and their reasons are listed in
+`DECISIONS.md`; the sections below are corrected to match.
+
 ## Why
 
 A visitor on a product page must be able to ask the sales team a question, and the team must receive
@@ -20,7 +27,7 @@ client IP mattered. Both land here, together, because the limiter is where the c
   and is never retried, and failures become a typed `NotificationError` carrying no personal data.
 - Add `EnquiryService` in `application/`: confirms the product exists, assigns an id, sends, and logs
   only the enquiry id, product id and outcome.
-- Add a `RateLimiter` port with memory and Redis adapters (fixed window per client IP) and an HTTP
+- Add a `RateLimiter` port with an in-memory adapter (fixed window per client IP) and an HTTP
   hook that applies a strict limit to enquiries and a generous one to catalogue reads, answers `429`
   with `Retry-After` in the shared envelope, adds `X-RateLimit-*` headers, and fails open (with an
   error log) when the store fails.
@@ -28,11 +35,9 @@ client IP mattered. Both land here, together, because the limiter is where the c
   `X-Forwarded-For` is ignored unless trusted hops are configured.
 - Extend configuration with the SMTP, mail address, rate limit and proxy settings; require the mail
   settings to be explicit and TLS to be used in production.
-- Add a minimal `compose.yaml` with Mailpit (local SMTP sink and web UI) and an optional `redis`
-  profile, so the whole flow can be tried locally. The api and web services join it in
-  `web-storefront`.
-- Share the single Redis connection between the cache and the rate limiter and close the SMTP
-  transport on shutdown.
+- Close the SMTP transport on shutdown.
+- `compose.yaml` (Mailpit as the local SMTP sink and web UI, plus the api and web services) is added
+  with the web app in `web-storefront`, so the whole flow runs with one command.
 
 No breaking changes to existing endpoints; catalogue reads gain rate limit headers and can now
 answer 429.
@@ -46,15 +51,14 @@ answer 429.
 - `enquiry-service`: the use case: product must exist, enquiry id, send, outcome logging.
 - `enquiry-notifier-smtp`: the `EnquiryNotifier` port and the SMTP adapter, including email
   construction, header-injection safety, timeouts and error mapping.
-- `rate-limiting`: the `RateLimiter` port, the memory and Redis adapters, the HTTP hook, 429 and
+- `rate-limiting`: the `RateLimiter` port, the in-memory adapter, the HTTP hook, 429 and
   headers, fail-open behaviour, and `trustProxy`.
 
 ### Modified Capabilities
 
 - `api-config`: SMTP, sender, sales inbox, rate limit and proxy settings, with production rules.
 - `catalogue-endpoints`: catalogue reads are rate limited and report their limit in headers.
-- `api-lifecycle`: shutdown also closes the SMTP transport; the Redis connection is shared and
-  closed once.
+- `api-lifecycle`: shutdown also closes the SMTP transport.
 
 ## Impact
 
@@ -65,9 +69,8 @@ answer 429.
 - **Dependencies**: `nodemailer` and `@types/nodemailer` (api). `npm install` is required, and the
   lockfile changes. No new rate-limit dependency (see design).
 - **Existing files touched**: `app.ts` (trustProxy, rate limit hook, route), `config`, `.env.example`,
-  `domain/errors.ts` (`NotificationError` gains a log-only `enquiryId`), `redis-cache.ts` (client
-  interface shared with the limiter), the error-handler test table.
-- **New files outside the api**: `compose.yaml`.
+  `domain/errors.ts` (`NotificationError` gains a log-only `enquiryId`), the error-handler test
+  table.
 - **Public surface**: `POST /api/v1/enquiries`; `429` and `X-RateLimit-*` on API routes.
 
 ## Assumptions

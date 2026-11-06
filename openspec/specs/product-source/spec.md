@@ -95,73 +95,52 @@ body, because the Fake Store returns an empty 200 for ids it does not have.
 - **WHEN** the upstream answers 404 for a product
 - **THEN** `findProduct` resolves to `undefined` and the fetch was called once
 
-### Requirement: Every upstream call has a timeout and a total deadline
+### Requirement: Every upstream call has a timeout
 
-Each attempt SHALL be aborted after `UPSTREAM_TIMEOUT_MS`. All attempts and backoff delays of one
-call together SHALL NOT exceed `UPSTREAM_DEADLINE_MS`: an attempt's timeout is the smaller of the
-per-attempt timeout and the remaining budget, and no retry SHALL start once the budget is spent.
+Each attempt SHALL be aborted after `UPSTREAM_TIMEOUT_MS`, and a timeout SHALL be reported as an
+`UpstreamTimeoutError`.
 
 #### Scenario: Attempt times out
 
 - **WHEN** the fetch never responds and the per-attempt timeout elapses on every attempt
 - **THEN** the call rejects with an `UpstreamTimeoutError`
 
-#### Scenario: Budget bounds the retries
-
-- **WHEN** the per-attempt timeout is 4 s, retries are 2 and the deadline is 6 s, and every attempt
-  times out
-- **THEN** fewer than 3 attempts are started and the call rejects with an `UpstreamTimeoutError`
-  no later than the deadline
-
-#### Scenario: A backoff that does not fit is not slept
-
-- **WHEN** the time left in the budget is not longer than the computed backoff or `Retry-After`
-- **THEN** no sleep happens, no further attempt starts, and the call fails with the last failure
-
 #### Scenario: Each attempt carries an abort signal
 
 - **WHEN** the adapter calls fetch
-- **THEN** every call receives an `AbortSignal`
+- **THEN** every call receives an `AbortSignal` created with the configured timeout
 
-### Requirement: Only idempotent calls are retried, with backoff and jitter
+### Requirement: Only idempotent calls are retried, a limited number of times
 
-The adapter SHALL retry a call after a network error, a timeout, a 5xx status or a 429 status, up to
-`UPSTREAM_MAX_RETRIES` retries. The delay before retry `n` SHALL be `random() * min(1500 ms,
-200 ms * 2^(n-1))`. A `Retry-After` header in seconds on a 429 or 503 SHALL be honoured, capped at
-1500 ms. Other 4xx statuses, 3xx statuses and validation failures SHALL NOT be retried.
+The adapter SHALL retry a GET after a network error, a timeout, a 5xx status or a 429 status, up to
+`UPSTREAM_MAX_RETRIES` retries (default 1), pausing a fixed 200 ms before each retry. Other 4xx
+statuses, 3xx statuses and validation failures SHALL NOT be retried.
 
 #### Scenario: 5xx then success
 
 - **WHEN** the first attempt answers 503 and the second answers 200 with valid products
 - **THEN** `listProducts` resolves with the products
-- **AND** the fetch was called twice and one sleep occurred
+- **AND** the fetch was called twice and one 200 ms pause occurred
 
 #### Scenario: Retries exhausted
 
 - **WHEN** every attempt answers 500 and `UPSTREAM_MAX_RETRIES` is 2
 - **THEN** the fetch was called exactly 3 times and the call rejects with an `UpstreamError`
 
-#### Scenario: Backoff grows with jitter
+#### Scenario: A 429 is retried
 
-- **WHEN** two retries happen with `random()` returning 0.5
-- **THEN** the sleeps are 100 ms and 200 ms
-
-#### Scenario: Backoff is capped
-
-- **WHEN** the retry number is large enough that `200 ms * 2^(n-1)` exceeds 1500 ms and `random()`
-  returns 1
-- **THEN** the sleep is 1500 ms
-
-#### Scenario: Retry-After honoured and capped
-
-- **WHEN** the first attempt answers 429 with `Retry-After: 1` and then 200
-- **THEN** the sleep is 1000 ms
-- **AND** with `Retry-After: 120` the sleep is 1500 ms
+- **WHEN** the first attempt answers 429 and the second answers 200
+- **THEN** the call resolves and the fetch was called twice
 
 #### Scenario: Network error retried
 
 - **WHEN** the first attempt rejects with a `TypeError: fetch failed` and the second succeeds
 - **THEN** the call resolves and the fetch was called twice
+
+#### Scenario: No retries configured
+
+- **WHEN** `UPSTREAM_MAX_RETRIES` is 0 and the first attempt answers 500
+- **THEN** the call rejects after a single fetch and no pause occurs
 
 #### Scenario: Non-retryable statuses
 

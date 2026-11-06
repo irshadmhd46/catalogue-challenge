@@ -3,8 +3,9 @@
 ### Requirement: RateLimiter port with interchangeable adapters
 
 The domain SHALL define a `RateLimiter` port with `consume(key, limit, windowSeconds)` resolving to
-`{ allowed, limit, remaining, retryAfterSeconds }`. `MemoryRateLimiter` and `RedisRateLimiter` SHALL
-satisfy one shared behavioural contract using a fixed window that starts at the first hit.
+`{ allowed, limit, remaining, retryAfterSeconds }`. `MemoryRateLimiter` SHALL satisfy a shared
+behavioural contract (a fixed window that starts at the first hit) that any future adapter must also
+pass.
 
 #### Scenario: Within the limit
 
@@ -37,11 +38,6 @@ satisfy one shared behavioural contract using a fixed window that starts at the 
 - **WHEN** the limit is 1
 - **THEN** the second call in the window is denied
 
-#### Scenario: Contract suite runs for each adapter
-
-- **WHEN** the test suite runs without `REDIS_URL`
-- **THEN** the contract runs against `MemoryRateLimiter` and the Redis run is reported as skipped
-- **AND** when `REDIS_URL` is set the same contract runs against `RedisRateLimiter`
 
 ### Requirement: The memory limiter cannot grow without bound
 
@@ -58,26 +54,6 @@ oldest, so memory stays bounded under a flood of distinct keys.
 - **WHEN** entries have expired and the limiter is used again
 - **THEN** the expired entries no longer count toward the held keys
 
-### Requirement: The Redis limiter is atomic and bounded
-
-`RedisRateLimiter` SHALL increment the counter, set the expiry on the first hit and read the time
-left in one atomic operation, using the shared Redis connection and a key prefix.
-
-#### Scenario: One round trip
-
-- **WHEN** a key consumes once
-- **THEN** exactly one script evaluation is made on the Redis client, with the namespaced key and the
-  window as arguments
-
-#### Scenario: Store failure surfaces as a CacheError
-
-- **WHEN** the Redis client rejects
-- **THEN** `consume` rejects with a `CacheError` whose `cause` is the original error
-
-#### Scenario: Unexpected reply
-
-- **WHEN** the script returns something that is not a count and a time to live
-- **THEN** `consume` rejects with a `CacheError`
 
 ### Requirement: Routes opt in to a limit scope
 

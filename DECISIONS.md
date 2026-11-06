@@ -1,97 +1,132 @@
 # Decisions
 
-Short records of choices that are not obvious from the code. Per-change design decisions live in
-`openspec/changes/*/design.md` (and `openspec/changes/archive/`); this file holds the cross-cutting
-ones.
+Short records of choices that are not obvious from the code. Per-change design notes live in
+`openspec/changes/*/design.md` and `openspec/changes/archive/`.
 
-## Dependency audit (2026-11-05)
+## Stack
 
-- `npm audit` cannot reach its endpoint from the development machine (Node's TLS connection to
-  `/-/npm/v1/security/audits/quick` is reset, although `curl` works). The same advisory data was
-  queried directly: the lockfile's 266 package/version pairs were POSTed to
-  `https://registry.npmjs.org/-/npm/v1/security/advisories/bulk`.
-- Result at `api-foundations`: no high or critical advisories. One **moderate** advisory,
-  `minimatch` 10.2.6 (GHSA-g3hv-75wg-m249, denial of service through glob amplification), reached
-  only through `typescript-eslint` (a dev dependency). It is not part of the runtime image and
-  needs untrusted glob patterns to be exploitable, which the lint toolchain never receives.
-  Accepted; picked up by the next `typescript-eslint` update.
-- Re-run `npm audit --audit-level=high` from a network where it works before hand-off, and repeat
-  this check after each change that adds dependencies.
+Node.js 22 + TypeScript + Fastify for the API, React + TypeScript + Vite for the client, a shared
+`packages/contracts` (zod) for the public API shapes. One language end to end, so the request and
+response types are written once and used by both sides. Runs with `docker compose up` (Podman works too);
+images are plain OCI so they build unchanged on AWS.
 
-## Catalogue (catalogue-api)
+## Assumptions (where the acceptance criteria were unclear)
 
-### Upstream quirks the adapter absorbs
+- **"I have chosen 5 products to be top rated"** means the featured list is a *selection*. It is
+  configured with `FEATURED_PRODUCT_IDS` (a stand-in for a future admin screen). When it is not set, the
+  default is the 5 highest rated products. Unknown ids in the setting are skipped with a warning.
+- **"Top rated"** is `rating.average` descending, then `rating.count` descending, then `id` ascending,
+  so every list is deterministic (the real data has ties). It lives in one function.
+- **Category page**: the 3 top rated products of the category, then the rest, in the same order.
+- **Search** is a case-insensitive substring match over title, description and category name, done in
+  the API because the upstream has no search. A blank query is a 400, never "everything".
+- **Enquiry**: name, email, optional phone, message. The product must exist. One email goes to one
+  configured sales inbox; the visitor's address is only the `Reply-To`. The visitor gets the "Thank you"
+  message in the UI after the API answers `202`; no email is sent to the visitor.
+- **No pagination, accounts or currency**: the catalogue is 20 products and the upstream gives no
+  currency, so `price` is a plain number and formatting is the client's job.
+- **Categories** are derived from the product data. The upstream spells one `jewelery`; the spelling is
+  kept rather than patched in code.
 
-- The Fake Store answers **HTTP 200 with an empty body** for a product id it does not have (and for
-  a non-numeric id), and 200 with `[]` for an unknown category. The adapter treats the empty body as
-  "no such product" (`undefined`) and the service raises our 404. Category existence is therefore
-  decided from our own category list, never from the upstream's reply.
-- The upstream spells a category `jewelery`. Slugs and names are derived from the data
-  (`categoryFromName`), so the spelling is kept rather than patched in code.
-- The upstream gives no currency, so `price` is a plain number and formatting is the client's job.
+## Upstream quirks the adapter absorbs
 
-### Ranking and featured
-
-- "Top rated" is `rating.average` descending, then `rating.count` descending, then `id` ascending.
-  The id tie-break makes every list deterministic; the real data has two products at 4.8 and two at
-  4.7. This is a stand-in for whatever rule the product team really wants, kept in one function.
-- Featured is the top 5. `FEATURED_PRODUCT_IDS` overrides it (a stand-in for curation); unknown ids
-  are skipped with a warning and an override with no valid id falls back to the ranking.
-- A category page shows the top 3 by the same rule, then the rest. Search is a case-insensitive
-  substring match over title, description and category name, because the upstream has no search.
-
-### Caching and failure policy
-
-- **Fail-open cache**: if the cache (memory or Redis) fails, the request goes to the upstream.
-  Availability over cost. Cache read and write errors are logged at `warn` and never fail a request.
-- **Stale-if-error**: entries are fresh for 60 s and usable as stale for another hour. When the
-  upstream fails and a stale entry exists, it is served with a `warn`; with nothing cached the typed
-  `UpstreamError` / `UpstreamTimeoutError` (502/504) reaches the client with its request id.
-- **Total upstream deadline** (10 s default): three attempts of 4 s plus backoff would otherwise run
-  past any sensible client timeout. Each attempt's timeout shrinks to the remaining budget.
-- **Absence is not cached**: a lookup of a product that does not exist always reaches the upstream.
-  Cached products are bounded by the catalogue size, but each distinct unknown id costs one upstream
-  call (single flight is per key, so unique ids are not collapsed). The 9-digit bound is for numeric
-  precision, not load; rate limiting (below) is what bounds this, and it must cover
-  `/api/v1/products/:id` too.
+- The Fake Store answers **HTTP 200 with an empty body** for a product id it does not have (and for a
+  non-numeric id), and 200 with `[]` for an unknown category. The adapter treats the empty body as "no
+  such product" and the service raises our own 404. Category existence is decided from our own category
+  list, never from the upstream's reply.
 - One list call feeds featured, categories, category pages and search, so those never cost an extra
   upstream request.
 
-### Known gaps, tracked
+## Requirements dropped or simplified, and why
 
-- **Public read endpoints are not rate limited yet.** Repeated lookups of non-existent ids reach the
-  upstream every time. Rate limiting and the `trustProxy` decision land together in `product-enquiry`.
-- `packages/contracts` is consumed from source by typecheck, tests and `tsx` (via `paths` and a Vitest
-  alias) and from `dist` at build and runtime (via `exports`); the root `build` script builds it first.
-  Three resolution paths can drift, so `npm run build` stays part of verification.
-- The error envelope still lives in the API; it moves into `packages/contracts` with the web client in
-  `web-storefront`.
+The brief says a small, well-reasoned solution beats a large, unexplained one. Part of this project was
+first built larger, then cut back to the brief after reading it again against the work. The cuts are
+listed so the reasoning is visible, not hidden.
 
-### Review follow-ups (catalogue-api)
+| Cut or simplified | Why |
+| --- | --- |
+| **Redis** (shared cache, shared rate limiter, reconnect strategy, compose profile) was built and tested, then removed | Not needed to meet any acceptance criterion; adds a service to run and ~190 lines plus a dependency. The `Cache` and `RateLimiter` ports remain, so a shared store is one adapter away. |
+| Cache retry cooldown and validation of cached values (built, then removed) | Only matter with a shared cache that outlives a deploy, which no longer exists. |
+| Upstream retry strategy: jitter, `Retry-After`, total deadline (built, then removed) | A timeout plus one retry with a fixed 200 ms pause is enough "sensible error handling" for a demo upstream. |
+| Enquiries are not persisted or queued | A synchronous send is the simplest thing that satisfies "the sales inbox receives an email". If it fails the visitor sees an error and can retry; nothing is lost silently. |
+| Rate limit is per process, fixed window | Stops casual abuse of the one write endpoint. With several instances each enforces its own limit. |
+| No auth, pagination, CAPTCHA or HTML email | Out of scope for the acceptance criteria. |
+| `npm audit` could not be run from the build machine (see below) | Network restriction in the build environment, not a project choice. |
 
-- **Composition root is `src/compose.ts`, started by `main.ts`.** The rule text says adapters are
-  created "only in `main.ts`"; the intent (one place, never inside services) is unchanged. The wiring
-  moved to an importable module because `main.ts` awaits `bootstrap` at import time, which made the
-  wiring (driver selection, Redis fail-fast, closers, config-to-adapter mapping) untestable. If the
-  literal wording in `CLAUDE.md` and `design-principles.md` should change, that is the owner's edit.
-- **Outage behaviour**: with a stale copy, requests are answered at once (15 s retry cooldown). With
-  a cold cache they each pay up to the upstream deadline (10 s) before a 502/504. A circuit breaker
-  that fails fast is the next step.
-- **One unmappable upstream product fails the whole list** (for example a category name with no ASCII
-  letters, or a rating above 5). This follows "a wrong shape is an `UpstreamError`"; skipping bad items
-  with a warning would be friendlier to a swappable source but hides data problems. Revisit with a
-  real source.
-- **Not covered by automated tests**: `UPSTREAM_TIMEOUT_MS` and `UPSTREAM_DEADLINE_MS` reaching the
-  adapter (the adapter honours them in its own tests; the wiring is checked by reading), and the
-  `dist` runtime path of `@catalogue/contracts` (covered by `npm run smoke:build`, run by hand).
+What was deliberately **kept** because the brief assesses it: a `ProductSource` port with the Fake Store
+behind an adapter (the data source will change), an `EnquiryNotifier` port with SMTP behind an adapter
+(the email provider will change), an in-memory cache with stale-if-error and single flight (the upstream
+is slow and unreliable), input validation at every boundary, header-injection-safe email, an explicit
+`trustProxy` setting, and logs that never contain the visitor's data.
 
-### Untrusted content
+## How the design grows beyond the PoC
 
-- Upstream product text (`title`, `description`, category names) and `imageUrl` are untrusted. The API
-  returns them as JSON with `application/json` and `nosniff`, which is safe, but the web client must
-  render them as text (never `dangerouslySetInnerHTML`) and should restrict `img-src` to the image
-  host; `imageUrl` is limited to http(s) and 2048 characters and should be upgraded to https where
-  the source allows it.
-- A cached product is only used if it is the product its key names, so a corrupted or tampered shared
-  cache entry cannot answer for another id.
+- **Swap the data source**: add a class implementing `ProductSource`, change `CATALOG_DRIVER`. Services,
+  routes and the contract do not change. The Fake Store shape never leaves `infrastructure/catalog`.
+- **Swap the email provider**: add a class implementing `EnquiryNotifier` (SES, a queue, Slack). The SMTP
+  adapter is configuration only (Mailpit locally, SES SMTP on AWS).
+- **Change the look and feel**: the web app only talks to our `/api/v1`; styling is CSS variables in one
+  theme file, so the creative work replaces tokens, not logic.
+- **Share the cache and rate limit across instances**: implement `Cache` and `RateLimiter` over Redis.
+- **The contract** (`packages/contracts`) is the one definition of the request and response shapes, used
+  by the API and the web app, so they cannot drift.
+- `src/compose.ts` is the one place that decides which adapter implements which port.
 
+## Failure policy
+
+- **Upstream**: every call has a timeout (4 s) and one retry on network errors, timeouts, 5xx and 429.
+  Failures are typed (`UpstreamError` 502, `UpstreamTimeoutError` 504) and shown to the visitor with a
+  request id that matches a log line.
+- **Cache**: entries are fresh for 60 s and usable as stale for an hour. If the upstream fails and a stale
+  entry exists it is served with a warning; with nothing cached the typed error reaches the client. Known
+  limit: while the upstream is down, each request after the fresh window waits for a refresh attempt
+  (up to about 8 s) before the stale copy is served; a retry cooldown or circuit breaker is the fix.
+- **Absence is not cached**: each distinct unknown product id costs one upstream call. The rate limit is
+  what bounds this.
+- **SMTP**: 8 s total deadline, never retried (a retry could send the same enquiry twice). Failure is a
+  `502` and the visitor can retry. Error causes carry only a code, command and status, never the server's
+  text, because that text can echo the visitor's address.
+- **Rate limiter fails open** if its store ever throws (availability over strictness for a low-risk form),
+  with an error log at most every 30 s.
+
+## Security notes
+
+- Every request input is validated with the shared schemas before it reaches a service, adapter or cache
+  key; unknown properties are rejected; messages never echo the submitted value.
+- Upstream product text and `imageUrl` are untrusted. The API returns them as JSON (safe); the web client
+  renders them as text and never as HTML.
+- `TRUST_PROXY_HOPS` is explicit (0 by default). Behind the compose proxy or an AWS load balancer set `1`.
+  With 0 a spoofed `X-Forwarded-For` is ignored (tested). The client address is only a rate limit key and
+  is never logged.
+- `NotificationError` carries a log-only `enquiryId`, so a failed attempt can be matched to the visitor's
+  retry without logging who they are.
+- Internationalised email addresses (non-ASCII local parts) are rejected by the validator: a known
+  limitation.
+
+## Engineering notes
+
+- **Composition root is `src/compose.ts`, started by `main.ts`.** The rule text says adapters are created
+  "only in `main.ts`"; the intent (one place, never inside services) is unchanged. The wiring moved to an
+  importable module so driver choice and config-to-adapter mapping can be tested.
+- `packages/contracts` is read from source by typecheck, tests and `tsx` (via `paths` and a Vitest alias)
+  and from `dist` at build and runtime (via `exports`); the root `build` script builds it first.
+  `npm run smoke:build` checks the `dist` path.
+- One unmappable upstream product fails the whole list (a wrong shape is an `UpstreamError`). Skipping
+  bad items would be friendlier for a swappable source but hides data problems.
+
+## Dependency audit
+
+`npm audit` could not reach its endpoint from the build machine (Node's TLS connection was reset while
+`curl` worked). The lockfile's package/version pairs were POSTed to the registry's bulk advisories
+endpoint instead. Result: no high or critical advisories; one moderate (`minimatch` via
+`typescript-eslint`, a dev dependency, not in the runtime image). Re-run `npm audit --audit-level=high`
+from a normal network before relying on this.
+
+## What I would do next with another day
+
+1. Persist enquiries and deliver them from a queue, so a failed send is retried safely and nothing is lost.
+2. Move the cache and rate limiter to Redis (ElastiCache on AWS) behind the existing ports.
+3. A circuit breaker or retry cooldown for the upstream outage case above.
+4. A real catalogue source with server-side search and paging; the `ProductSource` port is where that lands.
+5. CAPTCHA or another bot check on the enquiry form, and an admin screen for the featured selection.
+6. Sliding-window rate limiting and IPv6 /64 grouping.
