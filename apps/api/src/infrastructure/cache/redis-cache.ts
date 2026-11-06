@@ -9,12 +9,13 @@ const CONNECT_TIMEOUT_MS = 2000;
 const COMMAND_TIMEOUT_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 2000;
 
-/** The slice of an ioredis client this adapter uses, so tests can supply a fake. */
+/** The slice of an ioredis client the app uses (cache and rate limiter), so tests can supply a fake. */
 export interface RedisLike {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'EX', seconds: number): Promise<unknown>;
   ping(): Promise<unknown>;
   connect(): Promise<void>;
+  eval(script: string, numberOfKeys: number, ...args: (string | number)[]): Promise<unknown>;
   quit(): Promise<unknown>;
   disconnect(): void;
   on(event: 'error', listener: (error: Error) => void): unknown;

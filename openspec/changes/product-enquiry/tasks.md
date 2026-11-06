@@ -48,12 +48,12 @@
 
 ## 7. Rate limiting adapters
 
-- [ ] 7.1 Implement `src/infrastructure/rate-limit/memory-rate-limiter.ts` with an injected clock, fixed window from the first hit, purge of expired entries, and eviction of the oldest beyond 10 000 keys
-- [ ] 7.2 Write the shared contract suite `test/infrastructure/rate-limiter-contract.ts` (within limit and remaining countdown, over limit with `retryAfterSeconds` in range, denied hits do not extend the window, expiry, independent keys, limit of one) and run it against the memory limiter
-- [ ] 7.3 Test the memory limiter bounds: 20 000 distinct keys hold at most 10 000 entries and newest keys are still limited; expired entries are purged; a boundary test at exactly the window end
-- [ ] 7.4 Extend the shared Redis client interface with `eval` and implement `src/infrastructure/rate-limit/redis-rate-limiter.ts` (one Lua script: increment, expire on first hit, return count and time left; namespaced key; reply validation; `CacheError` on failure)
-- [ ] 7.5 Test the Redis limiter against the fake client: exactly one `eval` per consume with the key and window, mapping of the reply to the result, store failure becomes `CacheError` with the cause, malformed replies (wrong type, missing ttl, negative count) become `CacheError`
-- [ ] 7.6 Run the shared contract suite against the Redis limiter only when `REDIS_URL` is set (skipped otherwise) and confirm `npm test` reports it as skipped
+- [x] 7.1 Implement `src/infrastructure/rate-limit/memory-rate-limiter.ts` with an injected clock, fixed window from the first hit, purge of expired entries, and eviction of the oldest beyond 10 000 keys
+- [x] 7.2 Write the shared contract suite `test/infrastructure/rate-limiter-contract.ts` (within limit and remaining countdown, over limit with `retryAfterSeconds` in range, denied hits do not extend the window, expiry, independent keys, limit of one) and run it against the memory limiter
+- [x] 7.3 Test the memory limiter bounds: 20 000 distinct keys hold at most 10 000 entries and newest keys are still limited; expired entries are purged; a boundary test at exactly the window end
+- [x] 7.4 Extend the shared Redis client interface with `eval` and implement `src/infrastructure/rate-limit/redis-rate-limiter.ts` (one Lua script: increment, expire on first hit, return count and time left; namespaced key; reply validation; `CacheError` on failure)
+- [x] 7.5 Test the Redis limiter against the fake client: exactly one `eval` per consume with the key and window, mapping of the reply to the result, store failure becomes `CacheError` with the cause, malformed replies (wrong type, missing ttl, negative count) become `CacheError`
+- [x] 7.6 Run the shared contract suite against the Redis limiter only when `REDIS_URL` is set (skipped otherwise) and confirm `npm test` reports it as skipped
 
 ## 8. HTTP
 

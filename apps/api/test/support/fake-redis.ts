@@ -1,7 +1,12 @@
 import { EventEmitter } from 'node:events';
 import type { RedisLike } from '../../src/infrastructure/cache/redis-cache.js';
+import type { RedisCounterLike } from '../../src/infrastructure/rate-limit/redis-rate-limiter.js';
 
-export class FakeRedis extends EventEmitter implements RedisLike {
+export class FakeRedis extends EventEmitter implements RedisLike, RedisCounterLike {
+  readonly evals: { script: string; numberOfKeys: number; args: (string | number)[] }[] = [];
+  /** What the next `eval` resolves to. */
+  evalReply: unknown = [1, 60_000];
+
   readonly store = new Map<string, string>();
   readonly calls: string[] = [];
   readonly sets: { key: string; value: string; mode: string; seconds: number }[] = [];
@@ -41,5 +46,11 @@ export class FakeRedis extends EventEmitter implements RedisLike {
   disconnect(): void {
     this.calls.push('disconnect');
     this.disconnected = true;
+  }
+
+  eval(script: string, numberOfKeys: number, ...args: (string | number)[]): Promise<unknown> {
+    this.calls.push('eval');
+    this.evals.push({ script, numberOfKeys, args });
+    return this.failWith ? Promise.reject(this.failWith) : Promise.resolve(this.evalReply);
   }
 }
