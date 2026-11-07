@@ -44,6 +44,6 @@ The full stack was also run in containers: the enquiry arrived in Mailpit with t
 
 - Enquiries are not stored or queued; a failed send is shown to the visitor, who can retry.
 - Per-process rate limit and cache; behind several instances each keeps its own.
-- `npm audit` could not be run from the build machine; run `npm audit --audit-level=high` first.
+- `npm audit` could not reach its endpoint from either machine used (advisories were checked another way, see DECISIONS.md); run `npm audit --audit-level=high` from a normal network first.
 - The UI was exercised through component tests, not a browser session.
 - More in the "next with another day" list in DECISIONS.md.
