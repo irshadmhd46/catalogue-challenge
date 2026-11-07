@@ -60,6 +60,6 @@
 
 ## 11. Quality gates and review
 
-- [ ] 11.1 Design principles check and `npm run typecheck && npm run lint && npm test`, `npm run build`, coverage, advisory check
-- [ ] 11.2 Review gate: `code-reviewer`, then `security-reviewer`; report in `.claude/reviews/product-enquiry.md`
-- [ ] 11.3 `DECISIONS.md` and `AI_USAGE.md` updated; commit in logical units
+- [x] 11.1 Design principles check and `npm run typecheck && npm run lint && npm test`, `npm run build`, coverage, advisory check
+- [x] 11.2 Review gate: `code-reviewer`, then `security-reviewer`; report in `.claude/reviews/product-enquiry.md`
+- [x] 11.3 `DECISIONS.md` and `AI_USAGE.md` updated; commit in logical units

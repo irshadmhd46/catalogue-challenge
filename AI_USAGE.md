@@ -97,3 +97,29 @@ each entry says what went wrong and what caught it.
 - Running the built service and breaking the dependencies on purpose (stale drill, unreachable Redis)
   found item 4, which unit tests had not.
 
+## product-enquiry
+
+Built, then cut: the first pass included a Redis rate limiter, a cache cooldown and cached-value
+validation. Re-reading the brief ("a small, well-reasoned solution beats a large, unexplained one")
+against the specs showed the build had drifted past it; I cut to the brief (see DECISIONS.md). The
+drift was mine: each addition was defensible alone and none was required by an acceptance criterion.
+
+What the AI got wrong, found by mutation checks or the review gate:
+
+1. **Vacuous tests.** An oversize-body test passed without exercising the limit, a cache contract used
+   unstable `Date.now()` keys, and a redaction rule (`*.message`) hid error text from the very logs the
+   test inspected. Each was found by deleting the production line and watching the test still pass.
+2. **PII path in a failing notifier.** A privacy test showed that a notifier failing with a raw cause
+   would leak the visitor's data into the error log. Fixed by making "causes carry no PII" part of the
+   `EnquiryNotifier` port contract; the real SMTP adapter rebuilds its causes from code, command and
+   status only.
+3. **Plaintext credentials outside production.** The config refused `SMTP_TLS=none` only when
+   `NODE_ENV=production`. Found by the security review; now refused whenever credentials are set.
+4. **Schema claims larger than the schema.** The design said "single line, no control characters" but
+   the regex covered only C0 and DEL; C1 and U+2028/2029 passed. Also a phone message said "digits"
+   while the pattern allowed `.....`. Found by the code review.
+5. **Two definitions of the error envelope** (API type and contract schema) with nothing tying them
+   together. Route tests now parse real responses with the shared schema.
+6. **Tooling slips.** A regex literal with raw U+2028 broke syntax; a broad regex edit deleted test
+   helpers (restored from git after checking status); one commit went in without reading a failing run.
+
