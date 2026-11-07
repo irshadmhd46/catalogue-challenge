@@ -173,3 +173,12 @@ What the AI got wrong, found by mutation checks or the review gate:
 What worked: running the real container stack and probing it (spoofed forwarding headers, the delivered
 email in Mailpit) rather than trusting component tests alone.
 
+### Slip at the end: an unreviewed `git add -A`
+
+A docs commit used `git add -A` without looking at `git status` first. It swept in a change made by
+`npm audit fix --force` on the owner's machine: `typescript-eslint` was downgraded to 8.36.0 (which
+supports TypeScript below 5.9 only, while the repo uses 6.0.3) and the lockfile was regenerated. The
+container build then failed in `npm ci` with ERESOLVE. Found by the owner running the stack; fixed by
+restoring `package.json` and the lockfile from the previous commit. Lesson kept: stage named files and
+read `git status` before every commit, which is the repo's own git rule.
+
