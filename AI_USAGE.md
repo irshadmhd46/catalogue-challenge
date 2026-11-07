@@ -26,11 +26,19 @@ tasks live under `openspec/` and are the evidence of the plan. Rules the AI work
    breaking its dependencies on purpose found problems unit tests had not.
 4. "Where are we now?" at each boundary, to force an honest done / not done list.
 
-**Time spent.** Commits run from 4 Nov 18:16 to 7 Nov (about three calendar days, with long gaps).
-Active working time was not measured by the tooling, so the figure is left for the owner to enter
-from their own record: **active hours: 6 Hrs**. The plan estimated about 3.5 hours; the build went
-well past it, mainly because the first pass built Redis support, retry strategies and a larger test
-surface than the brief needed, and part of that was then removed. Cutting it back was itself time.
+**Time spent.** About **6 hours** of active work, over roughly three calendar days (commits run from
+4 Nov 18:16 to 7 Nov, with long gaps). The figures are the owner's own record, not tool-measured:
+
+| Phase | Time |
+| --- | --- |
+| Planning (brief, plan, OpenSpec proposals, designs, specs, tasks) | 3 h |
+| Building (code with the AI) | 1.5 h |
+| Testing (unit tests and manual checks of the running stack) | 1.5 h |
+| Reviewing | not tracked separately; the AI code and security reviews and fixing their findings fall inside the building and testing time |
+
+That is over the 2 to 3 hour time-box. The plan estimated about 3.5 hours. The overrun came mainly from
+the first pass building Redis support, retry strategies and a larger test surface than the brief
+needed, then cutting part of it back, which was itself time.
 
 ## api-foundations
 
