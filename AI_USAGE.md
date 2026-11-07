@@ -5,8 +5,8 @@ each entry says what went wrong and what caught it.
 
 ## Overview
 
-**Tools.** Claude Code (CLI) for planning, coding, tests and reviews; models varied by session
-(Sonnet 5 for the later sessions). OpenSpec for the change records. Two review subagents
+**Tools.** Claude Code (CLI) for planning, coding, tests and reviews, using Claude Sonnet 5
+(`claude-sonnet-5`) throughout. OpenSpec for the change records. Two review subagents
 (`code-reviewer`, `security-reviewer`) ran after every change, in a fresh context that had not seen the
 building conversation.
 
