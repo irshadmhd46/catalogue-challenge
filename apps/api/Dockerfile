@@ -1,5 +1,5 @@
 # Build context is the repository root: podman compose build api
-FROM node:22-alpine AS build
+FROM node:22.23-alpine AS build
 WORKDIR /repo
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/contracts/package.json packages/contracts/
@@ -10,7 +10,7 @@ COPY packages/contracts packages/contracts
 COPY apps/api apps/api
 RUN npm run build -w @catalogue/contracts && npm run build -w @catalogue/api
 
-FROM node:22-alpine AS runtime
+FROM node:22.23-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY package.json package-lock.json ./
