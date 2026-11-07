@@ -55,7 +55,7 @@
 
 ## 10. Verification
 
-- [ ] 10.1 Run the full stack with Mailpit (`docker compose up`, with `web-storefront`) and confirm the enquiry arrives in the Mailpit UI with the right headers
+- [x] 10.1 Run the full stack with Mailpit (`docker compose up`, with `web-storefront`) and confirm the enquiry arrives in the Mailpit UI with the right headers
 - [x] 10.2 Claim checks by grep: see `.claude/reviews/product-enquiry.md`
 
 ## 11. Quality gates and review

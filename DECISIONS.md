@@ -72,6 +72,24 @@ is slow and unreliable), input validation at every boundary, header-injection-sa
   by the API and the web app, so they cannot drift.
 - `src/compose.ts` is the one place that decides which adapter implements which port.
 
+## Web storefront
+
+- **Price format**: the upstream gives no currency; the client prints `$` with two decimals. Assumption.
+- **Images** come straight from the host in `imageUrl`, so the CSP allows `img-src https:` and nothing
+  else outside `'self'`. Every other request goes to our `/api/v1` through one module (a test fails if
+  `fetch(` appears anywhere else).
+- **Reads retry** twice on network errors and 5xx only; a 4xx never retries and shows no "Try again".
+  The enquiry is never retried automatically.
+- **Enquiry timeout**: the client gives up after 10 s while the API's SMTP deadline is 8 s plus
+  overhead. A slow mail server can therefore show "couldn't reach the server" for an email that was
+  sent, and a retry would send a second one. Accepted for the PoC; the fix is an idempotency key.
+- **Behind a load balancer**: the nginx proxy sets `X-Forwarded-For` to `$remote_addr` (replace, not
+  append), which is right when it faces visitors directly. With an AWS load balancer in front, add the
+  `real_ip` module (`set_real_ip_from <balancer CIDR>`, `real_ip_header X-Forwarded-For`) or terminate
+  the balancer straight onto the API with `TRUST_PROXY_HOPS=1`.
+- **Compose is a local demo**: `NODE_ENV=development` allows plain-text SMTP to Mailpit; the production
+  rules (TLS, explicit mail settings) are enforced when `NODE_ENV=production`.
+
 ## Failure policy
 
 - **Upstream**: every call has a timeout (4 s) and one retry on network errors, timeouts, 5xx and 429.

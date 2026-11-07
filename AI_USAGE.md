@@ -3,6 +3,35 @@
 Running list, kept per change. The "where the AI got something wrong" section is the honest part:
 each entry says what went wrong and what caught it.
 
+## Overview
+
+**Tools.** Claude Code (CLI) for planning, coding, tests and reviews; models varied by session
+(Sonnet 5 for the later sessions). OpenSpec for the change records. Two review subagents
+(`code-reviewer`, `security-reviewer`) ran after every change, in a fresh context that had not seen the
+building conversation.
+
+**Plan and spec.** A plan was agreed before any code (approved plan, then four OpenSpec changes:
+`api-foundations`, `catalogue-api`, `product-enquiry`, `web-storefront`). Proposals, designs, specs and
+tasks live under `openspec/` and are the evidence of the plan. Rules the AI worked under are in
+`CLAUDE.md` and `.claude/rules/`.
+
+**Prompts that mattered** (paraphrased from the session):
+
+1. "Continue with the plan: start OpenSpec change api-foundations", then "apply". Setting the order
+   (foundations before features) kept error handling, logging and config from being bolted on later.
+2. "Compare the actual requirement document with the specs again. Are we overdoing more than the
+   requirement?" The most useful prompt of the project: it triggered the cut to the brief (Redis, cache
+   cooldown, retry jitter and others removed; see DECISIONS.md).
+3. "Is there anything to test now?" / pasted curl and log output. Running the built service and
+   breaking its dependencies on purpose found problems unit tests had not.
+4. "Where are we now?" at each boundary, to force an honest done / not done list.
+
+**Time spent.** Commits run from 4 Nov 18:16 to 7 Nov (about three calendar days, with long gaps).
+Active working time was not measured by the tooling, so the figure is left for the owner to enter
+from their own record: **active hours: ____**. The plan estimated about 3.5 hours; the build went
+well past it, mainly because the first pass built Redis support, retry strategies and a larger test
+surface than the brief needed, and part of that was then removed. Cutting it back was itself time.
+
 ## api-foundations
 
 ### Where the AI got something wrong, and how it was caught
@@ -122,4 +151,25 @@ What the AI got wrong, found by mutation checks or the review gate:
    together. Route tests now parse real responses with the shared schema.
 6. **Tooling slips.** A regex literal with raw U+2028 broke syntax; a broad regex edit deleted test
    helpers (restored from git after checking status); one commit went in without reading a failing run.
+
+## web-storefront
+
+What the AI got wrong, found by mutation checks or the review gate:
+
+1. **A double-submit test that tested nothing.** It pressed Enter in a textarea, which never submits, so
+   removing the guard left the test green. Found by deleting the guard; now submits the form directly.
+2. **Retry policy tested only as a function.** The real query client was never used in a test, so
+   deleting its `retry` setting passed. Found by the code review.
+3. **Security headers silently dropped in one nginx location.** `add_header` in a nested location
+   replaces the inherited ones. Found by the security reviewer with `curl -I`; I had checked only `/`.
+4. **Mailpit's inbox, which shows visitors' details, published on all interfaces.** Found by the
+   security review; now loopback only.
+5. **Smaller:** an empty `componentDidCatch` kept only to satisfy a habit (removed); an expectation that
+   `encodeURIComponent` escapes `'` (it does not); `pino-pretty` needed in the image when
+   `NODE_ENV=development` (pretty output now requires a TTY); a README sentence promising stale-cache
+   behaviour that a container restart makes impossible.
+6. **Tooling:** a shell loop variable named `path` overwrote `PATH` in zsh and broke the next commands.
+
+What worked: running the real container stack and probing it (spoofed forwarding headers, the delivered
+email in Mailpit) rather than trusting component tests alone.
 
