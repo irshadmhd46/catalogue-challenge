@@ -51,7 +51,6 @@ listed so the reasoning is visible, not hidden.
 | Enquiries are not persisted or queued | A synchronous send is the simplest thing that satisfies "the sales inbox receives an email". If it fails the visitor sees an error and can retry; nothing is lost silently. |
 | Rate limit is per process, fixed window | Stops casual abuse of the one write endpoint. With several instances each enforces its own limit. |
 | No auth, pagination, CAPTCHA or HTML email | Out of scope for the acceptance criteria. |
-| `npm audit` could not be run (see below) | Network restriction on both machines used, not a project choice. |
 
 What was deliberately **kept** because the brief assesses it: a `ProductSource` port with the Fake Store
 behind an adapter (the data source will change), an `EnquiryNotifier` port with SMTP behind an adapter
@@ -134,15 +133,14 @@ is slow and unreliable), input validation at every boundary, header-injection-sa
 
 ## Dependency audit
 
-`npm audit` could not reach its endpoint, neither from the build machine nor from the owner's machine
-(Node's TLS connection to the audit endpoint is reset, while `curl` to the registry works). Instead:
+`npm audit` ran on the owner's machine after the build machine's attempts were blocked (Node's TLS
+connection to the audit endpoint was reset there). Result: **7 moderate, 0 high, 0 critical**. All seven
+are one advisory, `minimatch` GHSA-g3hv-75wg-m249 (denial of service through glob parts), reached through
+the `typescript-eslint` chain. It is a development-only linting dependency, is not in the runtime
+images, and has no fix available upstream yet. It was accepted and recorded here. The build machine's
+own check (the lockfile posted to the registry's bulk advisories endpoint) agreed.
 
-- `npm install` on the owner's machine reported **7 moderate and no high or critical** vulnerabilities.
-- The final lockfile's package/version pairs (361 packages, including the web app) were POSTed with
-  `curl` to the registry's bulk advisories endpoint. The only advisory returned is `minimatch`
-  (moderate, via `typescript-eslint`), a dev dependency that is not in the runtime images.
-
-Re-run `npm audit --audit-level=high` from a network where the endpoint is reachable before release.
+`npm audit --audit-level=high` passes (nothing at high or above); re-run it before release.
 
 ## What I would do next with another day
 
