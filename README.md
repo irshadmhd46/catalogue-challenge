@@ -19,7 +19,8 @@ catalogue with a form, and a browser needs nothing installed.
 
 ## Run it (about 5 minutes)
 
-You need [Podman](https://podman.io) (or Docker). On macOS, once:
+You need [Podman](https://podman.io) or Docker. It was tested with Podman 5; Docker Compose v2 uses
+the same files and should behave the same. On macOS with Podman, once:
 
 ```bash
 podman machine init && podman machine start
@@ -28,7 +29,7 @@ podman machine init && podman machine start
 Then, from the repository root:
 
 ```bash
-podman compose up --build        # `docker compose up --build` works too
+podman compose up --build        # or `docker compose up --build` (Compose v2)
 ```
 
 | What           | Where                   |
