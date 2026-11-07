@@ -28,7 +28,7 @@ tasks live under `openspec/` and are the evidence of the plan. Rules the AI work
 
 **Time spent.** Commits run from 4 Nov 18:16 to 7 Nov (about three calendar days, with long gaps).
 Active working time was not measured by the tooling, so the figure is left for the owner to enter
-from their own record: **active hours: ____**. The plan estimated about 3.5 hours; the build went
+from their own record: **active hours: 6 Hrs**. The plan estimated about 3.5 hours; the build went
 well past it, mainly because the first pass built Redis support, retry strategies and a larger test
 surface than the brief needed, and part of that was then removed. Cutting it back was itself time.
 
