@@ -13,7 +13,8 @@ await bootstrap({
   createLogger: (config) =>
     createPinoLogger({
       level: config.logLevel,
-      pretty: config.nodeEnv === 'development',
+      // pino-pretty is a dev dependency: containers (no TTY) always log JSON.
+      pretty: config.nodeEnv === 'development' && process.stdout.isTTY,
       getContext: getRequestContext,
     }),
   compose: (config, logger) => compose(config, logger, { createTransport: createSmtpTransport }),
