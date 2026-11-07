@@ -1,0 +1,22 @@
+schema: spec-driven
+
+context: |
+  Product catalogue PoC: Node.js 22 + TypeScript Fastify API (apps/api), React + Vite web app
+  (apps/web), shared zod contract (packages/contracts). Ports and adapters on the API side:
+  ProductSource, EnquiryNotifier, Cache, Logger. Upstream product data comes from the Fake Store
+  API, reached only through the API. Email goes to a sales inbox via SMTP (Mailpit locally).
+  Runs with Podman/Docker compose; images must be AWS-compatible. No secrets in the repo.
+  Rules live in .claude/rules/ (security, logging-and-errors, testing, design-principles).
+
+rules:
+  proposal:
+    - State assumptions explicitly where the acceptance criteria are unclear.
+    - List what is deliberately out of scope and why.
+  design:
+    - Record each key decision with alternatives considered and the trade-off accepted.
+    - State error handling, timeouts and logging for every external dependency.
+  tasks:
+    - Service layer - list the test task before the implementation task it covers (RED then GREEN).
+    - Other layers - implementation task first, its test task immediately after.
+    - Include a task for every error path named in the specs.
+    - End each change with a review-gate task (code-reviewer then security-reviewer).

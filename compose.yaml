@@ -1,0 +1,41 @@
+# Local demo stack, not a production profile: NODE_ENV=development lets the API use plain-text SMTP to
+# Mailpit. Ports are bound to loopback because the inbox UI shows every submitted enquiry.
+# Web on :8080, mail inbox UI on :8025. Works with `podman compose` or `docker compose`.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: '3000'
+      LOG_LEVEL: info
+      FAKESTORE_BASE_URL: ${FAKESTORE_BASE_URL:-https://fakestoreapi.com}
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_TLS: none
+      MAIL_FROM: no-reply@catalogue.local
+      SALES_INBOX: sales@catalogue.local
+      # One trusted hop: the web container's proxy. Do not publish the api port while this is 1.
+      TRUST_PROXY_HOPS: '1'
+    depends_on:
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '127.0.0.1:8080:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.33.0
+    ports:
+      - '127.0.0.1:8025:8025'

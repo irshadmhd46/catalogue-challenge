@@ -1,0 +1,31 @@
+{
+  "name": "@catalogue/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@catalogue/contracts": "*",
+    "@fastify/helmet": "^13.2.0",
+    "fastify": "^5.12.8",
+    "nodemailer": "^10.3.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "pino-pretty": "^13.2.0",
+    "tsx": "^4.23.15"
+  }
+}
