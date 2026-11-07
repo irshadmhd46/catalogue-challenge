@@ -7,8 +7,8 @@ export interface RateLimitResult {
 }
 
 /**
- * Counts hits per key in a fixed window that starts at the first hit. Adapters throw `CacheError`
- * when their store fails; the HTTP layer decides to fail open.
+ * Counts hits per key in a fixed window that starts at the first hit. A store that can fail (a
+ * shared one) throws `CacheError`; the HTTP layer decides to fail open.
  */
 export interface RateLimiter {
   consume(key: string, limit: number, windowSeconds: number): Promise<RateLimitResult>;

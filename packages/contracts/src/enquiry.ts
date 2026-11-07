@@ -8,8 +8,9 @@ export const MAX_MESSAGE_LENGTH = 2000;
 
 const PHONE = /^[0-9+()\-. ]{5,30}$/;
 // Newline, carriage return and tab are fine in a message; every other control character is not.
-// eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-const MESSAGE_CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+const MESSAGE_CONTROL_CHARACTERS =
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029]/;
 
 export const enquiryRequestSchema = z
   .object({
@@ -32,7 +33,11 @@ export const enquiryRequestSchema = z
       .trim()
       .max(MAX_EMAIL_LENGTH, `must be at most ${String(MAX_EMAIL_LENGTH)} characters`)
       .pipe(z.email('must be a valid email address')),
-    phone: z.string().trim().regex(PHONE, 'must be 5 to 30 digits, spaces or + ( ) - .').optional(),
+    phone: z
+      .string()
+      .trim()
+      .regex(PHONE, 'must be 5 to 30 characters: digits, spaces or + ( ) - .')
+      .optional(),
     message: z
       .string()
       .trim()

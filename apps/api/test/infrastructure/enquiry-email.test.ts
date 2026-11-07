@@ -70,6 +70,13 @@ describe('sanitiseHeader', () => {
     expect(result.endsWith('…')).toBe(true);
   });
 
+  it('never cuts an emoji in half', () => {
+    const result = sanitiseHeader('😀'.repeat(200), 150);
+
+    expect(Array.from(result)).toHaveLength(150);
+    expect(result).toBe(`${'😀'.repeat(149)}…`);
+  });
+
   it('leaves a value exactly at the limit alone', () => {
     expect(sanitiseHeader('y'.repeat(150), 150)).toBe('y'.repeat(150));
   });

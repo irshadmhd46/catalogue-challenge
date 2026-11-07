@@ -1,4 +1,4 @@
-import { enquiryResponseSchema } from '@catalogue/contracts';
+import { enquiryResponseSchema, errorEnvelopeSchema } from '@catalogue/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NotificationError, UpstreamError, UpstreamTimeoutError } from '../../src/domain/errors.js';
 import { SmtpEnquiryNotifier } from '../../src/infrastructure/mail/smtp-enquiry-notifier.js';
@@ -33,7 +33,9 @@ async function setup(env: Record<string, string> = {}) {
   return { ...built, source, post };
 }
 
-const errorOf = (body: string) => (JSON.parse(body) as { error: Record<string, unknown> }).error;
+/** Parses with the shared contract, so the server's envelope cannot drift from what the client reads. */
+const errorOf = (body: string): Record<string, unknown> =>
+  errorEnvelopeSchema.parse(JSON.parse(body)).error;
 
 describe('POST /api/v1/enquiries: the happy path', () => {
   it('answers 202 with an enquiry id and sends one email-ready enquiry to the notifier', async () => {

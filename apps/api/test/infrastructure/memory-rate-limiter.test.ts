@@ -112,19 +112,6 @@ describe('MemoryRateLimiter memory bounds', () => {
     expect(limiter.size).toBe(1);
   });
 
-  it('does not rescan the map more than once a second', async () => {
-    const { clock, limiter } = setup();
-    await limiter.consume('old', 1, 1);
-    clock.ms += 1500;
-    await limiter.consume('trigger', 1, 60); // purges 'old' (more than a second since the start)
-    expect(limiter.size).toBe(1);
-
-    await limiter.consume('x', 1, 1);
-    clock.ms += 1100;
-    await limiter.consume('y', 1, 60); // purges 'x'
-    expect(limiter.size).toBe(2);
-  });
-
   it('purges at most once a second, so a flood of calls does not rescan the map each time', async () => {
     const { clock, limiter } = setup();
     await limiter.consume('short-lived', 1, 0.5);

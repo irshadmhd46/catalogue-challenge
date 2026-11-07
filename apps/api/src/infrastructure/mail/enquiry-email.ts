@@ -24,10 +24,14 @@ const HEADER_BREAKERS = /[\u0000-\u001f\u007f-\u009f]/g;
 /** One line, no control characters, single spaces: safe to put in a header. */
 export function sanitiseHeader(value: string, maxLength?: number): string {
   const oneLine = value.replace(HEADER_BREAKERS, ' ').replace(/\s+/g, ' ').trim();
-  if (maxLength === undefined || oneLine.length <= maxLength) {
+  const characters = Array.from(oneLine);
+  if (maxLength === undefined || characters.length <= maxLength) {
     return oneLine;
   }
-  return `${oneLine.slice(0, maxLength - 1).trimEnd()}…`;
+  return `${characters
+    .slice(0, maxLength - 1)
+    .join('')
+    .trimEnd()}…`;
 }
 
 /**

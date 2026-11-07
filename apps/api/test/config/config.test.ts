@@ -395,10 +395,27 @@ describe('loadConfig: mail, rate limit and proxy settings', () => {
   });
 
   it('accepts a user and password together', () => {
-    const config = loadConfig({ SMTP_USER: 'mailer', SMTP_PASSWORD: 'p4ssw0rd' });
+    const config = loadConfig({
+      SMTP_USER: 'mailer',
+      SMTP_PASSWORD: 'p4ssw0rd',
+      SMTP_TLS: 'starttls',
+    });
 
     expect([config.smtpUser, config.smtpPassword]).toEqual(['mailer', 'p4ssw0rd']);
   });
+
+  it.each([
+    ['unset', {}],
+    ['none', { SMTP_TLS: 'none' }],
+  ])(
+    'credentials with SMTP_TLS %s -> ConfigError naming SMTP_TLS, in any environment',
+    (_l, tls) => {
+      const env = { SMTP_USER: 'mailer', SMTP_PASSWORD: 'p4ssw0rd', ...tls };
+
+      expect(fieldsOf(env)).toEqual(['SMTP_TLS']);
+      expect(fieldsOf({ ...env, NODE_ENV: 'test' })).toEqual(['SMTP_TLS']);
+    },
+  );
 
   it.each([
     'Name <a@b.co>',
@@ -492,6 +509,7 @@ describe('describeConfig: mail fields', () => {
       SMTP_HOST: 'smtp.example.test',
       SMTP_USER: 'mailer-user',
       SMTP_PASSWORD: 'p4ssw0rd-secret',
+      SMTP_TLS: 'starttls',
       MAIL_FROM: 'no-reply@shop.example.test',
       SALES_INBOX: 'sales@shop.example.test',
     });

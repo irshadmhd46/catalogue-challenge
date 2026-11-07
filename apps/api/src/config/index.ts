@@ -107,6 +107,17 @@ const envSchema = z
         });
       }
     }
+    if (
+      env.SMTP_USER !== undefined &&
+      env.SMTP_PASSWORD !== undefined &&
+      (env.SMTP_TLS === undefined || env.SMTP_TLS === 'none')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_TLS'],
+        message: 'must be starttls or tls when SMTP_USER and SMTP_PASSWORD are set',
+      });
+    }
     if ((env.SMTP_USER === undefined) !== (env.SMTP_PASSWORD === undefined)) {
       ctx.addIssue({
         code: 'custom',

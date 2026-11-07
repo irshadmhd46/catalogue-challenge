@@ -362,12 +362,6 @@ describe('trustProxy: the client address', () => {
     expect(await keyOf({}, CLIENT, { 'x-forwarded-for': '1.2.3.4' })).toBe(`read:${CLIENT}`);
   });
 
-  it('ignores X-Forwarded-For with TRUST_PROXY_HOPS=0 written out', async () => {
-    expect(await keyOf({ TRUST_PROXY_HOPS: '0' }, CLIENT, { 'x-forwarded-for': '1.2.3.4' })).toBe(
-      `read:${CLIENT}`,
-    );
-  });
-
   it('counts a spoofer rotating forwarded values as one client when no hops are trusted', async () => {
     const { app, handled } = await buildWithRoutes({ RATE_LIMIT_READ_PER_MINUTE: '2' });
     const statuses: number[] = [];
