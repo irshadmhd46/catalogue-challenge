@@ -83,6 +83,16 @@ describe('enquiry form: validation before sending', () => {
     expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('moves focus to the first invalid field', async () => {
+    stubApi({ [POST]: ACCEPTED });
+    const { user } = renderWithProviders(<EnquiryForm productId={7} />);
+    await fill(user, { name: 'Ann Lee', email: 'bad', message: 'short' });
+
+    await submit(user);
+
+    expect(screen.getByLabelText('Email')).toHaveFocus();
+  });
+
   it('rejects an invalid optional phone', async () => {
     const api = stubApi({ [POST]: ACCEPTED });
     const { user } = renderWithProviders(<EnquiryForm productId={7} />);
@@ -106,6 +116,16 @@ describe('enquiry form: sending', () => {
     expect(await screen.findByText(/Thank you/)).toBeInTheDocument();
     expect(bodyOf(api)).toEqual({ productId: 7, ...VALID, name: 'Ann Lee' });
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+  });
+
+  it('moves focus to the confirmation so keyboard and screen reader users land on it', async () => {
+    stubApi({ [POST]: ACCEPTED });
+    const { user } = renderWithProviders(<EnquiryForm productId={7} />);
+    await fill(user, VALID);
+
+    await submit(user);
+
+    expect(await screen.findByRole('status')).toHaveFocus();
   });
 
   it('includes the phone only when one was typed', async () => {

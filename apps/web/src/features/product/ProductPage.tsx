@@ -27,7 +27,7 @@ export function ProductPage() {
             </p>
             <p>{item.description}</p>
             {enquiring ? (
-              <EnquiryForm productId={item.id} />
+              <EnquiryForm key={item.id} productId={item.id} />
             ) : (
               <button
                 type="button"

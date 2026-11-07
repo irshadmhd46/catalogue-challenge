@@ -1,9 +1,11 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useCategories } from '../api/hooks';
+import { ErrorBoundary } from './ErrorBoundary';
 import { SearchBox } from './SearchBox';
 
 export function Layout() {
   const categories = useCategories();
+  const { pathname } = useLocation();
   return (
     <>
       <header className="site-header">
@@ -21,7 +23,10 @@ export function Layout() {
         </nav>
       </header>
       <main>
-        <Outlet />
+        {/* Keyed on the path so leaving a broken page clears the failure; the header stays usable. */}
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </>
   );

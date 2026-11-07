@@ -62,7 +62,12 @@ export function EnquiryForm({ productId }: { readonly productId: number }) {
 
   if (mutation.isSuccess) {
     return (
-      <p role="status" className="notice notice--success">
+      <p
+        role="status"
+        tabIndex={-1}
+        ref={(element) => element?.focus()}
+        className="notice notice--success"
+      >
         Thank you! Your enquiry has been sent and our sales team will be in touch.
       </p>
     );
@@ -89,6 +94,10 @@ export function EnquiryForm({ productId }: { readonly productId: number }) {
     const checked = validate(payload);
     if ('errors' in checked) {
       setClientErrors(checked.errors);
+      const first = FIELDS.find((field) => checked.errors[field.name] !== undefined);
+      if (first !== undefined) {
+        document.getElementById(`enquiry-${first.name}`)?.focus();
+      }
       return;
     }
     setClientErrors({});

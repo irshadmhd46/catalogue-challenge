@@ -270,6 +270,21 @@ describe('product page', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers no Try again for a request that cannot succeed (400)', async () => {
+    stubApi({
+      ...CATEGORIES,
+      'GET /api/v1/products/abc': () =>
+        json(errorBody('VALIDATION_ERROR', 'Invalid id', 'req-4'), 400),
+    });
+
+    renderApp('/products/abc');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Invalid id');
+    expect(alert).toHaveTextContent('Reference: req-4');
+    expect(within(alert).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('shows a network failure with a retry and no reference', async () => {
     vi.stubGlobal('fetch', (input: string) =>
       input.endsWith('/categories')
